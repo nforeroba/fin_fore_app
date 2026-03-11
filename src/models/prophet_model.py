@@ -60,11 +60,13 @@ def entrenar_prophet(
     # - weekly_seasonality: captura patrones semanales
     # - daily_seasonality: desactivado para datos diarios
     modelo = Prophet(
-        yearly_seasonality=True,
-        weekly_seasonality=True,
-        daily_seasonality=False,
-        interval_width=0.90  # Intervalos de confianza al 90%
-    )
+    growth="flat",
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False,
+    changepoint_prior_scale=0.01,
+    interval_width=0.90
+)
 
     # Las crypto no tienen fines de semana sin datos — no aplicar holidays
     if not es_crypto:
