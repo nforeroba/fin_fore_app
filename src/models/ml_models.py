@@ -195,27 +195,41 @@ def entrenar_xgboost(
 
 def predecir_con_intervalos(
     modelo: TimeSeriesRegressor,
+    df_train: pd.DataFrame,
     df_pred: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Genera predicciones con intervalos de confianza usando MAPIE.
+    Usa df_train como contexto para calcular lags y medias móviles
+    correctamente sobre df_pred.
 
     Parámetros:
         modelo  : modelo TimeSeriesRegressor entrenado
+        df_train: DataFrame de entrenamiento para contexto de lags
         df_pred : DataFrame con columnas 'date' y 'value' para predecir
-        alpha   : confidence_level=0.90
 
     Retorna:
         DataFrame con columnas 'ds', 'yhat', 'yhat_lower', 'yhat_upper'
     """
-    df_features = crear_features_temporales(df_pred)
-    X_pred, _ = obtener_X_y(df_features)
+    # Concatenar train + pred para tener contexto de lags completo
+    df_contexto = pd.concat([df_train, df_pred], ignore_index=True)
+
+    # Crear features sobre el contexto completo
+    df_features = crear_features_temporales(df_contexto)
+
+    # Filtrar solo las filas correspondientes a df_pred
+    fechas_pred = pd.to_datetime(df_pred["date"])
+    df_features_pred = df_features[
+        df_features["date"].isin(fechas_pred)
+    ].reset_index(drop=True)
+
+    X_pred, _ = obtener_X_y(df_features_pred)
 
     # MAPIE retorna (predicciones, intervalos)
     yhat, intervalos = modelo.predict(X_pred, confidence_level=0.90, ensemble=True)
 
     resultado = pd.DataFrame({
-        "ds"         : df_features["date"].values,
+        "ds"         : df_features_pred["date"].values,
         "yhat"       : yhat,
         "yhat_lower" : intervalos[:, 0, 0],
         "yhat_upper" : intervalos[:, 1, 0]
