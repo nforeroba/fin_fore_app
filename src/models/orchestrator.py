@@ -43,9 +43,11 @@ def split_train_test(
     Retorna:
         Tupla (df_train, df_test)
     """
-    # Calcular la fecha de corte
+    # Calcular la fecha de corte usando relativedelta — más robusto que DateOffset
+    from dateutil.relativedelta import relativedelta
+
     fecha_max = pd.to_datetime(df["date"].max())
-    fecha_corte = fecha_max - pd.DateOffset(months=meses_test)
+    fecha_corte = fecha_max - relativedelta(months=meses_test)
 
     # Split temporal
     df_train = df[df["date"] <= fecha_corte].reset_index(drop=True)
