@@ -31,6 +31,25 @@ from src.models.ml_models import (
 
 
 # ============================================================
+# UTILIDAD — Normalizar columna de fechas a date pura
+# ============================================================
+
+def _normalizar_fechas(serie: pd.Series) -> pd.Series:
+    """
+    Convierte cualquier serie de fechas a datetime64 sin hora ni timezone.
+    Maneja strings, Timestamps con/sin tz, y numpy datetime64.
+    .normalize() trunca la hora a 00:00:00 garantizando comparaciones exactas.
+
+    Parámetros:
+        serie: Serie con valores de fecha en cualquier formato
+
+    Retorna:
+        Serie de pandas datetime64[ns] sin timezone ni componente de hora
+    """
+    return pd.to_datetime(serie).dt.tz_localize(None).dt.normalize()
+
+
+# ============================================================
 # SPLIT TRAIN / TEST
 # ============================================================
 
@@ -41,13 +60,6 @@ def split_train_test(
     """
     Divide el DataFrame en train y test usando los últimos
     N meses como test set. Split temporal, no aleatorio.
-
-    Parámetros:
-        df        : DataFrame completo con columnas 'date' y 'value'
-        meses_test: número de meses a usar como test set
-
-    Retorna:
-        Tupla (df_train, df_test)
     """
     fecha_max   = pd.to_datetime(df["date"].max())
     fecha_corte = fecha_max - relativedelta(months=meses_test)
@@ -67,17 +79,7 @@ def calcular_metricas(
     y_pred: pd.Series,
     nombre_modelo: str
 ) -> dict:
-    """
-    Calcula MAE, RMSE, MAPE y SMAPE para un modelo.
-
-    Parámetros:
-        y_real       : valores reales del test set
-        y_pred       : predicciones del modelo
-        nombre_modelo: nombre del modelo para identificación
-
-    Retorna:
-        Diccionario con las métricas calculadas
-    """
+    """Calcula MAE, RMSE, MAPE y SMAPE para un modelo."""
     n      = min(len(y_real), len(y_pred))
     y_real = y_real.iloc[:n].values
     y_pred = y_pred.iloc[:n].values
@@ -88,9 +90,9 @@ def calcular_metricas(
     mask = y_real != 0
     mape = np.mean(np.abs((y_real[mask] - y_pred[mask]) / y_real[mask])) * 100
 
-    denominador  = (np.abs(y_real) + np.abs(y_pred)) / 2
-    mask_smape   = denominador != 0
-    smape        = np.mean(
+    denominador = (np.abs(y_real) + np.abs(y_pred)) / 2
+    mask_smape  = denominador != 0
+    smape       = np.mean(
         np.abs(y_real[mask_smape] - y_pred[mask_smape]) / denominador[mask_smape]
     ) * 100
 
@@ -118,6 +120,7 @@ def normalizar_predicciones_sf(
     df = predicciones_sf[["ds", col_yhat, col_lower, col_upper]].copy()
     df.columns = ["ds", "yhat", "yhat_lower", "yhat_upper"]
     df["modelo"] = nombre_modelo
+    df["ds"] = _normalizar_fechas(df["ds"])
     return df[["modelo", "ds", "yhat", "yhat_lower", "yhat_upper"]]
 
 
@@ -128,6 +131,7 @@ def normalizar_predicciones_prophet(
     """Normaliza predicciones de Prophet al formato estándar."""
     df = predicciones_prophet[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
     df["modelo"] = nombre_modelo
+    df["ds"] = _normalizar_fechas(df["ds"])
     return df[["modelo", "ds", "yhat", "yhat_lower", "yhat_upper"]]
 
 
@@ -138,6 +142,7 @@ def normalizar_predicciones_ml(
     """Normaliza predicciones de modelos ML al formato estándar."""
     df = predicciones_ml[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
     df["modelo"] = nombre_modelo
+    df["ds"] = _normalizar_fechas(df["ds"])
     return df[["modelo", "ds", "yhat", "yhat_lower", "yhat_upper"]]
 
 
@@ -148,39 +153,30 @@ def normalizar_predicciones_ml(
 def _filtrar_test(pred: pd.DataFrame, df_test: pd.DataFrame) -> pd.DataFrame:
     """
     Recorta las predicciones al período exacto del test set.
-    Evita que aparezcan predicciones antes de la fecha de inicio del test.
-
-    Parámetros:
-        pred   : DataFrame con columna 'ds'
-        df_test: DataFrame del test con columna 'date'
-
-    Retorna:
-        DataFrame filtrado a las fechas del test set
+    Normaliza ambas series a date pura antes de comparar.
     """
-    fecha_inicio = pd.to_datetime(df_test["date"].iloc[0])
-    fecha_fin    = pd.to_datetime(df_test["date"].iloc[-1])
-    pred         = pred.copy()
-    pred["ds"]   = pd.to_datetime(pred["ds"]).dt.tz_localize(None)
+    pred = pred.copy()
+    pred["ds"] = _normalizar_fechas(pred["ds"])
+
+    fechas_test = _normalizar_fechas(df_test["date"])
+    fecha_inicio = fechas_test.iloc[0]
+    fecha_fin    = fechas_test.iloc[-1]
+
     return pred[
         (pred["ds"] >= fecha_inicio) & (pred["ds"] <= fecha_fin)
     ].reset_index(drop=True)
 
 
-def _filtrar_forecast(pred: pd.DataFrame, fecha_fin: str) -> pd.DataFrame:
+def _filtrar_forecast(pred: pd.DataFrame, fecha_fin) -> pd.DataFrame:
     """
     Recorta las predicciones al período futuro solamente.
-    Evita que aparezcan predicciones en fechas históricas ya conocidas.
-
-    Parámetros:
-        pred     : DataFrame con columna 'ds'
-        fecha_fin: fecha de fin de los datos históricos (string 'YYYY-MM-DD')
-
-    Retorna:
-        DataFrame filtrado a fechas estrictamente posteriores a fecha_fin
+    Normaliza fechas a date pura para comparación robusta.
+    Fecha_fin puede ser string, date o Timestamp.
     """
-    fecha_corte = pd.to_datetime(fecha_fin).tz_localize(None)
-    pred        = pred.copy()
-    pred["ds"]  = pd.to_datetime(pred["ds"]).dt.tz_localize(None)
+    pred = pred.copy()
+    pred["ds"] = _normalizar_fechas(pred["ds"])
+    fecha_corte = _normalizar_fechas(pd.Series([str(fecha_fin)])).iloc[0]
+
     return pred[pred["ds"] > fecha_corte].reset_index(drop=True)
 
 
@@ -197,35 +193,18 @@ def ejecutar_pipeline(
 ) -> dict:
     """
     Ejecuta el pipeline completo de forecasting para un activo.
-    Coordina descarga de datos, split, entrenamiento de todos
-    los modelos, cálculo de métricas y generación de forecasts.
 
     Modelos incluidos:
         Estadísticos : AutoARIMA (con drift), AutoETS, Theta
         Prophet      : Prophet, Prophet+XGBoost errors
         ML           : ElasticNet, RandomForest, XGBoost
-
-    Parámetros:
-        simbolo         : símbolo del activo (ej. 'AAPL', 'BTC-USD')
-        fecha_inicio    : fecha de inicio en formato 'YYYY-MM-DD'
-        fecha_fin       : fecha de fin en formato 'YYYY-MM-DD'
-        meses_test      : meses a usar como test set
-        meses_horizonte : meses a predecir hacia adelante
-
-    Retorna:
-        Diccionario con:
-        - 'df_completo'  : serie histórica completa
-        - 'df_train'     : datos de entrenamiento
-        - 'df_test'      : datos de prueba
-        - 'pred_test'    : predicciones sobre test (formato largo)
-        - 'pred_forecast': forecast hacia adelante (formato largo)
-        - 'metricas'     : DataFrame con métricas por modelo
     """
 
     # ----------------------------------------------------------
-    # 1. Descargar datos
+    # 1. Descargar y normalizar fechas
     # ----------------------------------------------------------
     df = descargar_datos(simbolo, fecha_inicio, fecha_fin)
+    df["date"] = _normalizar_fechas(df["date"])
 
     # ----------------------------------------------------------
     # 2. Split train / test
@@ -240,8 +219,11 @@ def ejecutar_pipeline(
         c.isalpha() for c in simbolo.replace("-USD", "")
     )
 
-    dias_por_mes    = 30 if frecuencia == "D" else 21
-    horizonte_dias  = meses_horizonte * dias_por_mes
+    dias_por_mes   = 30 if frecuencia == "D" else 21
+    horizonte_dias = meses_horizonte * dias_por_mes
+
+    # fecha_fin normalizada — referencia única para todos los filtros de forecast
+    fecha_fin_norm = _normalizar_fechas(pd.Series([str(fecha_fin)])).iloc[0]
 
     pred_test_lista     = []
     pred_forecast_lista = []
@@ -253,8 +235,9 @@ def ejecutar_pipeline(
     _, pred_forecast_sf = entrenar_modelos_estadisticos(
         df, simbolo, horizonte_dias, frecuencia
     )
-    pred_test_sf["ds"]      = pd.to_datetime(pred_test_sf["ds"]).dt.tz_localize(None)
-    pred_forecast_sf["ds"]  = pd.to_datetime(pred_forecast_sf["ds"]).dt.tz_localize(None)
+
+    pred_test_sf["ds"]     = _normalizar_fechas(pred_test_sf["ds"])
+    pred_forecast_sf["ds"] = _normalizar_fechas(pred_forecast_sf["ds"])
 
     modelos_sf = {
         "AutoARIMA": ("AutoARIMA", "AutoARIMA-lo-90", "AutoARIMA-hi-90"),
@@ -266,20 +249,23 @@ def ejecutar_pipeline(
         )
     }
 
+    fechas_test_norm = _normalizar_fechas(df_test["date"])
+
     for nombre, (col_y, col_lo, col_hi) in modelos_sf.items():
-        # Test — completar fechas faltantes por feriados con ffill
-        fechas_test = pd.to_datetime(df_test["date"]).dt.tz_localize(None)
+        # Reindexar sobre fechas exactas del test — ffill para feriados
         pred_sf_test = pred_test_sf[["ds", col_y, col_lo, col_hi]].copy()
         pred_sf_test = pred_sf_test.set_index("ds")
-        pred_sf_test = pred_sf_test.reindex(fechas_test).ffill().reset_index()
+        pred_sf_test = pred_sf_test.reindex(fechas_test_norm).ffill().reset_index()
         pred_sf_test.columns = ["ds", col_y, col_lo, col_hi]
 
         pred_test_lista.append(
             normalizar_predicciones_sf(pred_sf_test, nombre, col_y, col_lo, col_hi)
         )
 
-        # Forecast — solo fechas futuras
-        pred_fc = _filtrar_forecast(pred_forecast_sf, fecha_fin)
+        # Forecast — solo fechas estrictamente después de fecha_fin
+        pred_fc = pred_forecast_sf[
+            pred_forecast_sf["ds"] > fecha_fin_norm
+        ].copy()
         pred_forecast_lista.append(
             normalizar_predicciones_sf(pred_fc, nombre, col_y, col_lo, col_hi)
         )
@@ -292,14 +278,12 @@ def ejecutar_pipeline(
 
     pred_test_lista.append(
         normalizar_predicciones_prophet(
-            _filtrar_test(pred_test_prophet_raw, df_test),
-            "Prophet"
+            _filtrar_test(pred_test_prophet_raw, df_test), "Prophet"
         )
     )
     pred_forecast_lista.append(
         normalizar_predicciones_prophet(
-            _filtrar_forecast(pred_forecast_prophet_raw, fecha_fin),
-            "Prophet"
+            _filtrar_forecast(pred_forecast_prophet_raw, fecha_fin), "Prophet"
         )
     )
 
@@ -313,14 +297,12 @@ def ejecutar_pipeline(
 
     pred_test_lista.append(
         normalizar_predicciones_prophet(
-            _filtrar_test(pred_test_pxgb_raw, df_test),
-            "Prophet+XGBoost"
+            _filtrar_test(pred_test_pxgb_raw, df_test), "Prophet+XGBoost"
         )
     )
     pred_forecast_lista.append(
         normalizar_predicciones_prophet(
-            _filtrar_forecast(pred_forecast_pxgb_raw, fecha_fin),
-            "Prophet+XGBoost"
+            _filtrar_forecast(pred_forecast_pxgb_raw, fecha_fin), "Prophet+XGBoost"
         )
     )
 
@@ -334,26 +316,22 @@ def ejecutar_pipeline(
     }
 
     for nombre_ml, modelo_ml in modelos_ml.items():
-        # Test
         pred_test_ml = predecir_con_intervalos(modelo_ml, df_train, df_test)
         pred_test_lista.append(
             normalizar_predicciones_ml(
-                _filtrar_test(pred_test_ml, df_test),
-                nombre_ml
+                _filtrar_test(pred_test_ml, df_test), nombre_ml
             )
         )
 
-        # Forecast — solo fechas futuras
         pred_forecast_ml = forecast_ml(modelo_ml, df, horizonte_dias, frecuencia)
         pred_forecast_lista.append(
             normalizar_predicciones_ml(
-                _filtrar_forecast(pred_forecast_ml, fecha_fin),
-                nombre_ml
+                _filtrar_forecast(pred_forecast_ml, fecha_fin), nombre_ml
             )
         )
 
     # ----------------------------------------------------------
-    # 8. Unificar predicciones en DataFrames largos
+    # 8. Unificar predicciones
     # ----------------------------------------------------------
     pred_test_unificado     = pd.concat(pred_test_lista,     ignore_index=True)
     pred_forecast_unificado = pd.concat(pred_forecast_lista, ignore_index=True)

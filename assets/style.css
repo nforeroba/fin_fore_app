@@ -22,112 +22,198 @@ body {
 
 /* ============================================================
    DROPDOWN — Tema oscuro
-   Sobrescribe los estilos blancos de dcc.Dropdown
+   Estrategia: atacar todos los estados posibles con la mayor
+   especificidad alcanzable sin JS. El fondo blanco al abrir
+   viene de .Select.is-open que Bootstrap sobreescribe.
    ============================================================ */
 
-.dropdown-dark .Select-control,
-.dropdown-dark .Select-menu-outer,
-.dropdown-dark .VirtualizedSelectFocusedOption,
-.dropdown-dark .VirtualizedSelectOption {
+/* Contenedor raíz — todos los estados */
+.dropdown-dark .Select,
+.dropdown-dark .Select--single,
+.dropdown-dark .Select.is-focused,
+.dropdown-dark .Select.is-open,
+.dropdown-dark .Select.is-pseudo-focused,
+.dropdown-dark .Select.has-value,
+.dropdown-dark .Select.has-value.is-focused,
+.dropdown-dark .Select.has-value.Select--single {
     background-color: #1C2128 !important;
-    color: #E6EDF3 !important;
-    border-color: #30363D !important;
 }
 
-/* Contenedor principal del dropdown */
+/* Control visible — todos los estados */
 .dropdown-dark .Select-control {
     background-color: #1C2128 !important;
     border: 1px solid #30363D !important;
     border-radius: 6px !important;
     min-height: 36px !important;
-    cursor: pointer;
+    cursor: pointer !important;
+    color: #E6EDF3 !important;
+    box-shadow: none !important;
 }
 
-/* Texto del valor seleccionado */
+.dropdown-dark .Select.is-open > .Select-control,
+.dropdown-dark .Select.is-focused > .Select-control,
+.dropdown-dark .Select.is-pseudo-focused > .Select-control {
+    background-color: #1C2128 !important;
+    border-color: #00C896 !important;
+    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
+}
+
+.dropdown-dark .Select-control:hover {
+    border-color: #00C896 !important;
+    background-color: #1C2128 !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+}
+
+/* Valor seleccionado y placeholder */
 .dropdown-dark .Select-value-label,
-.dropdown-dark .Select-placeholder {
+.dropdown-dark .Select-placeholder,
+.dropdown-dark .Select-value,
+.dropdown-dark .Select--single > .Select-control .Select-value {
     color: #E6EDF3 !important;
     font-family: 'DM Sans', sans-serif !important;
     font-size: 0.875rem !important;
+    background-color: transparent !important;
+    line-height: 34px !important;
 }
 
-/* Input de búsqueda dentro del dropdown */
-.dropdown-dark input {
+/* Input de búsqueda */
+.dropdown-dark .Select-input,
+.dropdown-dark .Select-input > input {
+    background-color: transparent !important;
     color: #E6EDF3 !important;
     font-family: 'DM Sans', sans-serif !important;
+    caret-color: #00C896 !important;
+}
+
+/* Forzar fondo oscuro en el input cuando está activo */
+.dropdown-dark .Select.is-open .Select-input,
+.dropdown-dark .Select.is-focused .Select-input {
+    background-color: transparent !important;
 }
 
 /* Menú desplegable */
 .dropdown-dark .Select-menu-outer {
     background-color: #1C2128 !important;
     border: 1px solid #30363D !important;
-    border-radius: 6px !important;
+    border-top: none !important;
+    border-radius: 0 0 6px 6px !important;
     z-index: 9999 !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    margin-top: 0 !important;
 }
 
-/* Opciones del menú */
-.dropdown-dark .VirtualizedSelectOption {
+.dropdown-dark .Select-menu {
+    background-color: #1C2128 !important;
+}
+
+/* Opciones */
+.dropdown-dark .VirtualizedSelectOption,
+.dropdown-dark .Select-option {
     background-color: #1C2128 !important;
     color: #E6EDF3 !important;
     font-family: 'DM Sans', sans-serif !important;
     font-size: 0.875rem !important;
     padding: 8px 12px !important;
+    cursor: pointer !important;
 }
 
-/* Opción hover */
-.dropdown-dark .VirtualizedSelectFocusedOption {
-    background-color: #00C896 !important;
-    color: #0D1117 !important;
+.dropdown-dark .VirtualizedSelectFocusedOption,
+.dropdown-dark .Select-option.is-focused,
+.dropdown-dark .Select-option:hover {
+    background-color: rgba(0, 200, 150, 0.15) !important;
+    color: #00C896 !important;
 }
 
-/* Flecha del dropdown */
+.dropdown-dark .Select-option.is-selected {
+    background-color: rgba(0, 200, 150, 0.2) !important;
+    color: #00C896 !important;
+    font-weight: 600 !important;
+}
+
+/* Flecha */
 .dropdown-dark .Select-arrow {
     border-top-color: #7D8590 !important;
 }
 
-.dropdown-dark .Select-arrow-zone:hover .Select-arrow {
+.dropdown-dark .Select-arrow-zone:hover .Select-arrow,
+.dropdown-dark .Select.is-open .Select-arrow {
     border-top-color: #00C896 !important;
 }
 
-/* Focus state */
-.dropdown-dark .Select-control:hover {
-    border-color: #00C896 !important;
-}
-
-.dropdown-dark.is-focused .Select-control {
-    border-color: #00C896 !important;
-    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
+/* Limpiar outlines de Bootstrap en focus */
+.dropdown-dark *:focus {
+    outline: none !important;
 }
 
 /* ============================================================
-   DATE PICKER — Tema oscuro y z-index correcto
+   DATE PICKER — Tema oscuro
+   El fondo blanco al hacer clic viene de que Bootstrap/Cyborg
+   sobreescribe .DateInput_input con background: #fff en :focus.
+   Se necesita la combinación de background + background-color
+   más -webkit-text-fill-color para cubrir todos los casos.
    ============================================================ */
 
 .date-picker-dark .DateInput,
-.date-picker-dark .SingleDatePickerInput {
+.date-picker-dark .SingleDatePickerInput,
+.date-picker-dark .SingleDatePickerInput__withBorder {
     background-color: #1C2128 !important;
     border: 1px solid #30363D !important;
     border-radius: 6px !important;
+    overflow: hidden;
 }
 
-.date-picker-dark .DateInput_input {
+/* Input de texto — triple declaración para máxima especificidad */
+.date-picker-dark .DateInput_input,
+.date-picker-dark .DateInput .DateInput_input,
+.date-picker-dark input[type="text"],
+.date-picker-dark input {
     background-color: #1C2128 !important;
+    background: #1C2128 !important;
     color: #E6EDF3 !important;
+    /* -webkit-text-fill-color gana sobre color en Chrome/Safari
+       incluso cuando el browser aplica estilos de autofill */
+    -webkit-text-fill-color: #E6EDF3 !important;
     font-family: 'Space Mono', monospace !important;
     font-size: 0.8rem !important;
     border: none !important;
     padding: 6px 10px !important;
-    border-radius: 6px !important;
+    border-radius: 0 !important;
     width: 100% !important;
+    box-shadow: none !important;
 }
 
-.date-picker-dark .DateInput_input:focus {
+/* Estado focused — mantener fondo oscuro */
+.date-picker-dark .DateInput_input:focus,
+.date-picker-dark .DateInput_input__focused,
+.date-picker-dark input[type="text"]:focus,
+.date-picker-dark input:focus {
+    background-color: #1C2128 !important;
+    background: #1C2128 !important;
+    color: #E6EDF3 !important;
+    -webkit-text-fill-color: #E6EDF3 !important;
     outline: none !important;
+    box-shadow: none !important;
     border-bottom: 2px solid #00C896 !important;
 }
 
-/* Calendario popup — z-index alto para aparecer al frente */
+/* Hover sobre el contenedor */
+.date-picker-dark .SingleDatePickerInput:hover,
+.date-picker-dark .SingleDatePickerInput__withBorder:hover {
+    border-color: #00C896 !important;
+}
+
+.date-picker-dark .DateInput_input::placeholder {
+    color: #7D8590 !important;
+    -webkit-text-fill-color: #7D8590 !important;
+}
+
+/* Calendario popup */
+.date-picker-dark .SingleDatePicker,
+.date-picker-dark .SingleDatePicker_picker {
+    z-index: 9999 !important;
+}
+
 .date-picker-dark .SingleDatePicker_picker,
 .DayPicker,
 .DayPicker__withBorder {
@@ -135,19 +221,13 @@ body {
     border: 1px solid #30363D !important;
     border-radius: 8px !important;
     z-index: 9999 !important;
-    position: relative;
 }
 
-/* Contenedor del picker con z-index */
-.date-picker-dark .SingleDatePicker {
-    z-index: 9999 !important;
+.CalendarMonth,
+.CalendarMonthGrid {
+    background-color: #161B22 !important;
 }
 
-.date-picker-dark .SingleDatePicker_picker {
-    z-index: 9999 !important;
-}
-
-/* Días del calendario */
 .CalendarDay__default {
     background-color: #161B22 !important;
     color: #E6EDF3 !important;
@@ -169,7 +249,6 @@ body {
     background-color: #00A87E !important;
 }
 
-/* Header del calendario — mes y año */
 .DayPickerNavigation_button {
     background-color: #1C2128 !important;
     border-color: #30363D !important;
@@ -189,52 +268,77 @@ body {
     color: #7D8590 !important;
 }
 
-/* Días fuera del rango del mes */
 .CalendarDay__outside {
     color: #30363D !important;
+    background-color: #161B22 !important;
 }
 
-/* Fondo negro del polígono — fix del bug visual */
+/* Polígono (fang) entre input y calendario */
 .DateInput_fang,
 .DateInput_fangShape {
     fill: #161B22 !important;
     stroke: #30363D !important;
 }
 
-/* ============================================================
-   INPUT NUMBER — Tema oscuro con flechitas +/-
-   ============================================================ */
-
-.input-number-dark {
-    background-color: #1C2128 !important;
-    border: 1px solid #30363D !important;
-    border-radius: 6px !important;
-    color: #E6EDF3 !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.9rem !important;
-    padding: 6px 8px !important;
-    height: 36px !important;
-    text-align: center !important;
-    -moz-appearance: number-input;
+.DateInput_fangStroke {
+    stroke: #30363D !important;
+    fill: transparent !important;
 }
 
-.input-number-dark:focus {
-    outline: none !important;
-    border-color: #00C896 !important;
-    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
+/* ============================================================
+   INPUT NUMBER — Flechitas +/- visibles
+   dcc.Input genera: <div class="input-number-dark"><input /></div>
+   La clase está en el div wrapper, no en el input.
+   Los pseudo-elementos ::-webkit-*-spin-button solo funcionan
+   sobre el elemento <input> directamente — hay que seleccionar
+   el input hijo explícitamente.
+   ============================================================ */
+
+/* Estilos del div wrapper */
+.input-number-dark {
+    display: inline-block !important;
+    border: 1px solid #30363D !important;
+    border-radius: 6px !important;
+    background-color: #1C2128 !important;
+    height: 36px !important;
+    overflow: hidden !important;
 }
 
 .input-number-dark:hover {
     border-color: #00C896 !important;
 }
 
-/* Flechitas del input number — color claro en tema oscuro */
-.input-number-dark::-webkit-inner-spin-button,
-.input-number-dark::-webkit-outer-spin-button {
+.input-number-dark:focus-within {
+    border-color: #00C896 !important;
+    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
+}
+
+/* Estilos del input nativo dentro del wrapper */
+.input-number-dark input[type="number"] {
+    background-color: #1C2128 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: #E6EDF3 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.9rem !important;
+    padding: 6px 4px 6px 8px !important;
+    height: 100% !important;
+    width: 100% !important;
+    text-align: center !important;
+    outline: none !important;
+    /* appearance: auto es clave — sin esto Chrome oculta las flechitas */
+    -webkit-appearance: auto !important;
+    -moz-appearance: number-input !important;
+    appearance: auto !important;
+}
+
+/* Flechitas — seleccionar directamente el input hijo */
+.input-number-dark input[type="number"]::-webkit-inner-spin-button,
+.input-number-dark input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: auto !important;
     opacity: 1 !important;
-    filter: invert(1) !important;
     cursor: pointer !important;
-    height: 24px !important;
+    height: 34px !important;
 }
 
 /* ============================================================
@@ -321,13 +425,11 @@ body {
    ============================================================ */
 
 @media (max-width: 768px) {
-    /* Topbar en columna en móvil */
     .topbar-controles {
         flex-direction: column !important;
         gap: 12px !important;
     }
 
-    /* Inputs a ancho completo */
     .topbar-controles > div {
         width: 100% !important;
         min-width: unset !important;

@@ -5,6 +5,7 @@
 # ============================================================
 
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from src.layout.components import COLORES
 
@@ -13,7 +14,6 @@ from src.layout.components import COLORES
 # CONFIGURACIÓN BASE DE GRÁFICOS
 # ============================================================
 
-# Colores asignados a cada modelo — consistentes en todos los gráficos
 COLORES_MODELOS = {
     "AutoARIMA"      : "#58A6FF",
     "AutoETS"        : "#F0B429",
@@ -25,7 +25,6 @@ COLORES_MODELOS = {
     "XGBoost"        : "#A78BFA",
 }
 
-# Layout base compartido por todos los gráficos
 LAYOUT_BASE = dict(
     paper_bgcolor=COLORES["fondo_card"],
     plot_bgcolor =COLORES["fondo"],
@@ -35,18 +34,18 @@ LAYOUT_BASE = dict(
         size  =11,
     ),
     xaxis=dict(
-        gridcolor    =COLORES["borde"],
-        linecolor    =COLORES["borde"],
-        tickcolor    =COLORES["borde"],
-        showgrid     =True,
-        zeroline     =False,
+        gridcolor=COLORES["borde"],
+        linecolor=COLORES["borde"],
+        tickcolor=COLORES["borde"],
+        showgrid =True,
+        zeroline =False,
     ),
     yaxis=dict(
-        gridcolor    =COLORES["borde"],
-        linecolor    =COLORES["borde"],
-        tickcolor    =COLORES["borde"],
-        showgrid     =True,
-        zeroline     =False,
+        gridcolor=COLORES["borde"],
+        linecolor=COLORES["borde"],
+        tickcolor=COLORES["borde"],
+        showgrid =True,
+        zeroline =False,
     ),
     legend=dict(
         bgcolor     =COLORES["fondo_card"],
@@ -55,10 +54,9 @@ LAYOUT_BASE = dict(
         font=dict(size=10, family="'Space Mono', monospace"),
         orientation ="v",
         x=1.01, y=1,
-        groupclick="toggleitem",  # Click en leyenda afecta solo ese item
     ),
     margin=dict(l=50, r=180, t=50, b=50),
-    hovermode="x unified",
+    hovermode="closest",
 )
 
 
@@ -85,6 +83,72 @@ def hex_a_rgba(hex_color: str, opacidad: float = 0.10) -> str:
 
 
 # ============================================================
+# UTILIDAD — Agregar traza de modelo con banda CI integrada
+# ============================================================
+
+def _agregar_traza_modelo(
+    fig: go.Figure,
+    df_modelo: pd.DataFrame,
+    nombre: str,
+    color: str,
+    dash: str = "solid",
+) -> None:
+    """
+    Agrega dos trazas para un modelo: banda CI y línea de predicción.
+
+    La banda CI usa fill='toself' con un polígono cerrado.
+    La razón por la que el toggle falla con legendgroup es que
+    Plotly no garantiza sincronización entre trazas no contiguas.
+    La solución es no usar legendgroup en absoluto:
+
+    - La banda CI tiene showlegend=False — no aparece en la leyenda
+    - La línea tiene showlegend=True — aparece en la leyenda
+    - Ambas comparten el mismo nombre para que el toggle de
+      visibilidad las afecte: al hacer clic en la leyenda, Plotly
+      oculta TODAS las trazas con el mismo 'name' en la figura.
+
+    Esto funciona porque Plotly vincula trazas por 'name' cuando
+    no hay legendgroup, siempre que ambas trazas tengan el mismo
+    nombre exacto.
+
+    Parámetros:
+        fig      : figura Plotly a modificar
+        df_modelo: DataFrame con columnas ds, yhat, yhat_lower, yhat_upper
+        nombre   : nombre del modelo (aparece en la leyenda)
+        color    : color hex del modelo
+        dash     : estilo de línea ('solid', 'dot', 'dash')
+    """
+    ds      = df_modelo["ds"]
+    y_upper = df_modelo["yhat_upper"]
+    y_lower = df_modelo["yhat_lower"]
+
+    # Polígono cerrado: superior de izq a der, inferior de der a izq
+    x_banda = pd.concat([ds, ds.iloc[::-1]], ignore_index=True)
+    y_banda = pd.concat([y_upper, y_lower.iloc[::-1]], ignore_index=True)
+
+    # Traza 1 — banda CI, mismo nombre que la línea, sin entrada en leyenda
+    fig.add_trace(go.Scatter(
+        x=x_banda,
+        y=y_banda,
+        fill="toself",
+        fillcolor=hex_a_rgba(color, 0.12),
+        line=dict(color="rgba(0,0,0,0)", width=0),
+        name=nombre,
+        showlegend=False,
+        hoverinfo="skip",
+    ))
+
+    # Traza 2 — línea de predicción, aparece en la leyenda
+    fig.add_trace(go.Scatter(
+        x=ds,
+        y=df_modelo["yhat"],
+        name=nombre,
+        line=dict(color=color, width=1.5, dash=dash),
+        hovertemplate=f"%{{y:,.4f}}<extra>{nombre}</extra>",
+    ))
+
+
+# ============================================================
 # GRÁFICO DE VALIDACIÓN
 # ============================================================
 
@@ -99,8 +163,8 @@ def grafico_validacion(
     completa y las predicciones de cada modelo sobre el test set,
     con bandas de intervalos de confianza.
 
-    El legendgroup vincula la línea y la banda CI de cada modelo
-    para que aparezcan y desaparezcan juntas al hacer clic en la leyenda.
+    Al hacer clic en un modelo en la leyenda, su línea y su banda
+    CI desaparecen juntas (comparten el mismo 'name').
 
     Parámetros:
         df_completo: serie histórica completa
@@ -113,44 +177,20 @@ def grafico_validacion(
     """
     fig = go.Figure()
 
-    # --- Serie histórica completa (datos reales) ---
+    # --- Serie histórica completa ---
     fig.add_trace(go.Scatter(
         x=df_completo["date"],
         y=df_completo["value"],
         name="ACTUAL",
-        legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
         hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
     ))
 
-    # --- Predicciones por modelo con intervalos de confianza ---
+    # --- Predicciones por modelo ---
     for modelo in pred_test["modelo"].unique():
         df_modelo = pred_test[pred_test["modelo"] == modelo].copy()
         color = COLORES_MODELOS.get(modelo, "#FFFFFF")
-
-        # Banda de confianza — mismo legendgroup que la línea
-        # Al hacer clic en la leyenda ambas desaparecen juntas
-        fig.add_trace(go.Scatter(
-            x=pd.concat([df_modelo["ds"], df_modelo["ds"].iloc[::-1]]),
-            y=pd.concat([df_modelo["yhat_upper"], df_modelo["yhat_lower"].iloc[::-1]]),
-            fill="toself",
-            fillcolor=hex_a_rgba(color, 0.12),
-            line=dict(color="rgba(0,0,0,0)"),
-            legendgroup=modelo,
-            showlegend=False,
-            hoverinfo="skip",
-            name=f"{modelo} CI"
-        ))
-
-        # Línea de predicción — es la que aparece en la leyenda
-        fig.add_trace(go.Scatter(
-            x=df_modelo["ds"],
-            y=df_modelo["yhat"],
-            name=modelo,
-            legendgroup=modelo,
-            line=dict(color=color, width=1.5, dash="dot"),
-            hovertemplate=f"%{{y:,.4f}}<extra>{modelo}</extra>"
-        ))
+        _agregar_traza_modelo(fig, df_modelo, modelo, color, dash="dot")
 
     # Línea vertical — inicio del test set
     fecha_inicio_test = str(df_test["date"].iloc[0])
@@ -198,8 +238,8 @@ def grafico_forecast(
     completa y las predicciones hacia adelante de cada modelo,
     con bandas de intervalos de confianza.
 
-    El legendgroup vincula la línea y la banda CI de cada modelo
-    para que aparezcan y desaparezcan juntas al hacer clic en la leyenda.
+    Al hacer clic en un modelo en la leyenda, su línea y su banda
+    CI desaparecen juntas (comparten el mismo 'name').
 
     Parámetros:
         df_completo    : serie histórica completa
@@ -217,38 +257,15 @@ def grafico_forecast(
         x=df_completo["date"],
         y=df_completo["value"],
         name="ACTUAL",
-        legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
         hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
     ))
 
-    # --- Forecast por modelo con intervalos de confianza ---
+    # --- Forecast por modelo ---
     for modelo in pred_forecast["modelo"].unique():
         df_modelo = pred_forecast[pred_forecast["modelo"] == modelo].copy()
         color = COLORES_MODELOS.get(modelo, "#FFFFFF")
-
-        # Banda de confianza — mismo legendgroup que la línea
-        fig.add_trace(go.Scatter(
-            x=pd.concat([df_modelo["ds"], df_modelo["ds"].iloc[::-1]]),
-            y=pd.concat([df_modelo["yhat_upper"], df_modelo["yhat_lower"].iloc[::-1]]),
-            fill="toself",
-            fillcolor=hex_a_rgba(color, 0.12),
-            line=dict(color="rgba(0,0,0,0)"),
-            legendgroup=modelo,
-            showlegend=False,
-            hoverinfo="skip",
-            name=f"{modelo} CI"
-        ))
-
-        # Línea de forecast — aparece en la leyenda
-        fig.add_trace(go.Scatter(
-            x=df_modelo["ds"],
-            y=df_modelo["yhat"],
-            name=modelo,
-            legendgroup=modelo,
-            line=dict(color=color, width=1.5),
-            hovertemplate=f"%{{y:,.4f}}<extra>{modelo}</extra>"
-        ))
+        _agregar_traza_modelo(fig, df_modelo, modelo, color, dash="solid")
 
     # Línea vertical — inicio del forecast
     fecha_inicio_forecast = str(pred_forecast["ds"].min())
@@ -319,9 +336,9 @@ def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
             fill_color=COLORES["fondo_card"],
             align="left",
             font=dict(
-                color=COLORES["acento_verde"],
+                color =COLORES["acento_verde"],
                 family="'Space Mono', monospace",
-                size=11
+                size  =11
             ),
             line_color=COLORES["borde"],
             height=36,
@@ -337,9 +354,9 @@ def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
             fill_color=colores_celdas,
             align="left",
             font=dict(
-                color=COLORES["texto_principal"],
+                color =COLORES["texto_principal"],
                 family="'Space Mono', monospace",
-                size=11
+                size  =11
             ),
             line_color=COLORES["borde"],
             height=32,

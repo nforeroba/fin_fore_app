@@ -54,18 +54,18 @@ def _crear_features_xgb(ds_series: pd.Series) -> pd.DataFrame:
     ds = pd.to_datetime(ds_series)
     df_feat = pd.DataFrame({
         # Tendencia numérica — equivalente a as.numeric(date) en R
-        "date_num"     : (ds - ds.min()).dt.days,
+        "date_num"   : (ds - ds.min()).dt.days,
         # Componentes de calendario
-        "mes"          : ds.dt.month,
-        "trimestre"    : ds.dt.quarter,
-        "dia_semana"   : ds.dt.dayofweek,
-        "semana_anio"  : ds.dt.isocalendar().week.astype(int),
-        "dia_anio"     : ds.dt.dayofyear,
+        "mes"        : ds.dt.month,
+        "trimestre"  : ds.dt.quarter,
+        "dia_semana" : ds.dt.dayofweek,
+        "semana_anio": ds.dt.isocalendar().week.astype(int),
+        "dia_anio"   : ds.dt.dayofyear,
         # Señales cíclicas para capturar periodicidad
-        "mes_sin"      : np.sin(2 * np.pi * ds.dt.month / 12),
-        "mes_cos"      : np.cos(2 * np.pi * ds.dt.month / 12),
-        "sem_sin"      : np.sin(2 * np.pi * ds.dt.dayofweek / 7),
-        "sem_cos"      : np.cos(2 * np.pi * ds.dt.dayofweek / 7),
+        "mes_sin"    : np.sin(2 * np.pi * ds.dt.month / 12),
+        "mes_cos"    : np.cos(2 * np.pi * ds.dt.month / 12),
+        "sem_sin"    : np.sin(2 * np.pi * ds.dt.dayofweek / 7),
+        "sem_cos"    : np.cos(2 * np.pi * ds.dt.dayofweek / 7),
     })
     return df_feat
 
@@ -80,7 +80,6 @@ def _entrenar_prophet_base(
 ) -> Prophet:
     """
     Entrena Prophet con los defaults exactos de modeltime (R).
-    Parámetros idénticos a prophet_fit_impl y prophet_xgboost_fit_impl.
 
     Parámetros:
         df_prophet: DataFrame con columnas 'ds' e 'y'
@@ -90,26 +89,81 @@ def _entrenar_prophet_base(
         Modelo Prophet entrenado
     """
     modelo = Prophet(
-        growth                  = "linear",   # default modeltime
-        n_changepoints          = 25,          # default modeltime
-        changepoint_range       = 0.8,         # default modeltime
-        yearly_seasonality      = "auto",      # default modeltime
-        weekly_seasonality      = "auto",      # default modeltime
-        daily_seasonality       = False,       # desactivado para datos diarios
-        seasonality_mode        = "additive",  # default modeltime
-        changepoint_prior_scale = 0.05,        # default modeltime
-        seasonality_prior_scale = 10.0,        # default modeltime
-        holidays_prior_scale    = 10.0,        # default modeltime
-        interval_width          = 0.90,        # intervalo de confianza 90%
+        growth                  = "linear",
+        n_changepoints          = 25,
+        changepoint_range       = 0.8,
+        yearly_seasonality      = "auto",
+        weekly_seasonality      = "auto",
+        daily_seasonality       = False,
+        seasonality_mode        = "additive",
+        changepoint_prior_scale = 0.05,
+        seasonality_prior_scale = 10.0,
+        holidays_prior_scale    = 10.0,
+        interval_width          = 0.90,
         uncertainty_samples     = 1000,
     )
 
-    # Holidays solo para activos que no son crypto
     if not es_crypto:
         modelo.add_country_holidays(country_name="US")
 
     modelo.fit(df_prophet)
     return modelo
+
+
+# ============================================================
+# UTILIDAD — Construir DataFrame de fechas futuras
+# ============================================================
+
+def _construir_futuro(
+    modelo: Prophet,
+    ultima_fecha: pd.Timestamp,
+    horizonte: int,
+    es_crypto: bool
+) -> pd.DataFrame:
+    """
+    Construye el DataFrame de fechas futuras para Prophet usando
+    make_future_dataframe con freq correcto según tipo de activo.
+    Solo retorna las fechas estrictamente posteriores a ultima_fecha.
+
+    Usar esta función para el FORECAST (fechas desconocidas).
+    Para el TEST usar _construir_futuro_desde_fechas().
+
+    Parámetros:
+        modelo      : Prophet ya entrenado
+        ultima_fecha: última fecha del train
+        horizonte   : número de períodos a predecir
+        es_crypto   : True si el activo opera 7 días a la semana
+
+    Retorna:
+        DataFrame con columna 'ds' de fechas futuras
+    """
+    frecuencia = "D" if es_crypto else "B"
+    futuro = modelo.make_future_dataframe(periods=horizonte, freq=frecuencia)
+    # Retornar solo las fechas posteriores al último dato del train
+    return futuro[futuro["ds"] > ultima_fecha].reset_index(drop=True)
+
+
+def _construir_futuro_desde_fechas(df_test: pd.DataFrame) -> pd.DataFrame:
+    """
+    Construye el DataFrame de fechas para Prophet usando las fechas
+    exactas del test set retornadas por yfinance.
+
+    Por qué: make_future_dataframe con freq='B' usa días hábiles del
+    calendario gregoriano, pero yfinance omite feriados del mercado
+    (Thanksgiving, Christmas, etc.). Esa diferencia acumula un desfase
+    de varios días que hace que Prophet termine antes que los otros modelos.
+    Pasar las fechas exactas del test garantiza alineación perfecta.
+
+    Usar esta función para la VALIDACIÓN (test set conocido).
+
+    Parámetros:
+        df_test: DataFrame del test con columna 'date'
+
+    Retorna:
+        DataFrame con columna 'ds' de fechas exactas del test
+    """
+    fechas = pd.to_datetime(df_test["date"]).dt.tz_localize(None)
+    return pd.DataFrame({"ds": fechas.values})
 
 
 # ============================================================
@@ -125,8 +179,6 @@ def _entrenar_prophet_xgb(
     1. Entrena Prophet sobre los datos de train
     2. Calcula residuos in-sample: residuos = y_real - y_prophet
     3. Entrena XGBoost sobre esos residuos usando features temporales
-
-    Replica exactamente prophet_xgboost_fit_impl de modeltime.
 
     Parámetros:
         df_train : DataFrame con columnas 'date' y 'value'
@@ -145,19 +197,19 @@ def _entrenar_prophet_xgb(
     residuos = df_prophet["y"].values - pred_insample["yhat"].values
 
     # Paso 3 — Features temporales para XGBoost
-    X_train = _crear_features_xgb(df_prophet["ds"])
+    X_train  = _crear_features_xgb(df_prophet["ds"])
     date_min = df_prophet["ds"].min()
 
     # Paso 4 — Entrenar XGBoost sobre residuos
     # Hiperparámetros por defecto de modeltime: nrounds=15, eta=0.3, max_depth=6
     dtrain = xgb.DMatrix(X_train.values, label=residuos)
     params = {
-        "objective"  : "reg:squarederror",
-        "max_depth"  : 6,
-        "eta"        : 0.3,
-        "subsample"  : 1.0,
-        "verbosity"  : 0,
-        "nthread"    : 1,
+        "objective": "reg:squarederror",
+        "max_depth": 6,
+        "eta"      : 0.3,
+        "subsample": 1.0,
+        "verbosity": 0,
+        "nthread"  : 1,
     }
     modelo_xgb = xgb.train(params, dtrain, num_boost_round=15, verbose_eval=False)
 
@@ -183,17 +235,13 @@ def _predecir_prophet_xgb(
     Retorna:
         DataFrame con columnas 'ds', 'yhat', 'yhat_lower', 'yhat_upper'
     """
-    # Predicciones Prophet
     pred_prophet = modelo_prophet.predict(ds_futuro)
 
-    # Predicciones XGBoost sobre residuos
     X_fut = _crear_features_xgb(ds_futuro["ds"])
-    # Ajustar date_num respecto al mínimo del train
     X_fut["date_num"] = (pd.to_datetime(ds_futuro["ds"]) - date_min).dt.days
     dfut = xgb.DMatrix(X_fut.values)
     correccion_xgb = modelo_xgb.predict(dfut)
 
-    # Predicción final = Prophet + corrección XGBoost
     pred_final = pred_prophet.copy()
     pred_final["yhat"]       = pred_prophet["yhat"]       + correccion_xgb
     pred_final["yhat_lower"] = pred_prophet["yhat_lower"] + correccion_xgb
@@ -212,7 +260,8 @@ def entrenar_prophet(
     es_crypto: bool = False
 ) -> tuple[Prophet, pd.DataFrame]:
     """
-    Entrena Prophet y genera predicciones hacia adelante.
+    Entrena Prophet y genera predicciones de forecast hacia adelante.
+    Usa make_future_dataframe con freq correcto — solo para fechas futuras.
 
     Parámetros:
         df_train  : DataFrame con columnas 'date' y 'value'
@@ -225,8 +274,8 @@ def entrenar_prophet(
     df_prophet = preparar_datos_prophet(df_train)
     modelo = _entrenar_prophet_base(df_prophet, es_crypto)
 
-    frecuencia = "D" if es_crypto else "B"
-    futuro = modelo.make_future_dataframe(periods=horizonte, freq=frecuencia)
+    ultima_fecha = df_prophet["ds"].max()
+    futuro = _construir_futuro(modelo, ultima_fecha, horizonte, es_crypto)
     predicciones = modelo.predict(futuro)
 
     return modelo, predicciones
@@ -239,6 +288,9 @@ def predecir_test_prophet(
 ) -> pd.DataFrame:
     """
     Genera predicciones de Prophet sobre el test set.
+    Usa las fechas exactas del test (no make_future_dataframe) para
+    garantizar alineación perfecta con yfinance independientemente
+    del calendario de feriados del mercado.
 
     Parámetros:
         df_train : DataFrame de entrenamiento
@@ -248,16 +300,14 @@ def predecir_test_prophet(
     Retorna:
         DataFrame con columnas 'ds', 'yhat', 'yhat_lower', 'yhat_upper'
     """
-    horizonte_test = len(df_test)
-    _, predicciones = entrenar_prophet(df_train, horizonte_test, es_crypto)
+    df_prophet = preparar_datos_prophet(df_train)
+    modelo = _entrenar_prophet_base(df_prophet, es_crypto)
 
-    fecha_inicio_test = pd.to_datetime(df_test["date"].iloc[0])
-    predicciones_test = predicciones[
-        predicciones["ds"] >= fecha_inicio_test
-    ].reset_index(drop=True)
+    # Predecir exactamente sobre las fechas del test set
+    futuro_test = _construir_futuro_desde_fechas(df_test)
+    predicciones = modelo.predict(futuro_test)
 
-    columnas = ["ds", "yhat", "yhat_lower", "yhat_upper"]
-    return predicciones_test[columnas].head(horizonte_test)
+    return predicciones[["ds", "yhat", "yhat_lower", "yhat_upper"]].reset_index(drop=True)
 
 
 # ============================================================
@@ -270,7 +320,8 @@ def entrenar_prophet_xgboost(
     es_crypto: bool = False
 ) -> tuple:
     """
-    Entrena Prophet+XGBoost errors y genera predicciones hacia adelante.
+    Entrena Prophet+XGBoost errors y genera predicciones de forecast.
+    Usa make_future_dataframe — solo para fechas futuras.
 
     Parámetros:
         df_train  : DataFrame con columnas 'date' y 'value'
@@ -282,9 +333,9 @@ def entrenar_prophet_xgboost(
     """
     modelo_prophet, modelo_xgb, date_min = _entrenar_prophet_xgb(df_train, es_crypto)
 
-    df_prophet = preparar_datos_prophet(df_train)
-    frecuencia = "D" if es_crypto else "B"
-    futuro = modelo_prophet.make_future_dataframe(periods=horizonte, freq=frecuencia)
+    df_prophet   = preparar_datos_prophet(df_train)
+    ultima_fecha = df_prophet["ds"].max()
+    futuro = _construir_futuro(modelo_prophet, ultima_fecha, horizonte, es_crypto)
 
     predicciones = _predecir_prophet_xgb(modelo_prophet, modelo_xgb, date_min, futuro)
 
@@ -298,6 +349,8 @@ def predecir_test_prophet_xgboost(
 ) -> pd.DataFrame:
     """
     Genera predicciones de Prophet+XGBoost sobre el test set.
+    Usa las fechas exactas del test para garantizar alineación
+    perfecta con yfinance.
 
     Parámetros:
         df_train : DataFrame de entrenamiento
@@ -307,14 +360,12 @@ def predecir_test_prophet_xgboost(
     Retorna:
         DataFrame con columnas 'ds', 'yhat', 'yhat_lower', 'yhat_upper'
     """
-    modelo_prophet, modelo_xgb, predicciones, date_min = entrenar_prophet_xgboost(
-        df_train, len(df_test), es_crypto
+    modelo_prophet, modelo_xgb, date_min = _entrenar_prophet_xgb(df_train, es_crypto)
+
+    # Predecir exactamente sobre las fechas del test set
+    futuro_test  = _construir_futuro_desde_fechas(df_test)
+    predicciones = _predecir_prophet_xgb(
+        modelo_prophet, modelo_xgb, date_min, futuro_test
     )
 
-    fecha_inicio_test = pd.to_datetime(df_test["date"].iloc[0])
-    pred_test = predicciones[
-        predicciones["ds"] >= fecha_inicio_test
-    ].reset_index(drop=True)
-
-    columnas = ["ds", "yhat", "yhat_lower", "yhat_upper"]
-    return pred_test[columnas].head(len(df_test))
+    return predicciones[["ds", "yhat", "yhat_lower", "yhat_upper"]].reset_index(drop=True)

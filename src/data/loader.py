@@ -17,19 +17,17 @@ import re
 def obtener_simbolos_sp500() -> list:
     """
     Obtiene la lista completa y actualizada de símbolos del S&P500
-    desde la API de Wikipedia en formato JSON, extrayendo los símbolos
-    con regex desde el wikitext de la página.
+    desde la API de Wikipedia en formato JSON.
 
     Retorna:
         Lista de símbolos en formato string (ej. ['AAPL', 'MSFT', ...])
     """
     try:
-        # API de Wikipedia en formato JSON — evita problemas con pd.read_html
         url = "https://en.wikipedia.org/w/api.php"
         params = {
             "action": "parse",
-            "page": "List of S&P 500 companies",
-            "prop": "wikitext",
+            "page"  : "List of S&P 500 companies",
+            "prop"  : "wikitext",
             "format": "json"
         }
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -38,10 +36,7 @@ def obtener_simbolos_sp500() -> list:
         datos = respuesta.json()
         wikitext = datos["parse"]["wikitext"]["*"]
 
-        # Los símbolos aparecen como {{NyseSymbol|XXX}} o {{NasdaqSymbol|XXX}}
         simbolos = re.findall(r'\{\{(?:Nyse|Nasdaq)Symbol\|([A-Z.\-]+)\}\}', wikitext)
-
-        # Reemplazar punto por guion (ej. BRK.B → BRK-B) para yfinance
         simbolos = [s.replace(".", "-") for s in simbolos]
 
         return sorted(set(simbolos))
@@ -49,6 +44,50 @@ def obtener_simbolos_sp500() -> list:
     except Exception as e:
         print(f"Error obteniendo símbolos S&P500: {e}")
         return []
+
+
+def obtener_simbolos_indices() -> list:
+    """
+    Retorna los índices bursátiles más relevantes del mundo.
+    Disponibles en yfinance con el prefijo ^.
+
+    Retorna:
+        Lista de símbolos de índices en formato yfinance
+    """
+    return [
+        # Estados Unidos
+        "^GSPC",   # S&P 500
+        "^DJI",    # Dow Jones Industrial Average
+        "^IXIC",   # NASDAQ Composite
+        "^RUT",    # Russell 2000
+        "^VIX",    # CBOE Volatility Index
+
+        # Europa
+        "^FTSE",   # FTSE 100 (UK)
+        "^GDAXI",  # DAX (Alemania)
+        "^FCHI",   # CAC 40 (Francia)
+        "^STOXX50E", # Euro Stoxx 50
+        "^IBEX",   # IBEX 35 (España)
+
+        # Asia / Pacífico
+        "^N225",   # Nikkei 225 (Japón)
+        "^HSI",    # Hang Seng (Hong Kong)
+        "000001.SS", # Shanghai Composite (China)
+        "^AXJO",   # ASX 200 (Australia)
+        "^KS11",   # KOSPI (Corea del Sur)
+
+        # Latinoamérica
+        "^BVSP",   # Bovespa (Brasil)
+        "^MXX",    # IPC (México)
+        "^IPSA",   # IPSA (Chile)
+        "^COLCAP",  # COLCAP (Colombia)
+
+        # Materias primas / otros
+        "GC=F",    # Oro (Gold Futures)
+        "SI=F",    # Plata (Silver Futures)
+        "CL=F",    # Petróleo WTI
+        "BZ=F",    # Petróleo Brent
+    ]
 
 
 def obtener_simbolos_crypto() -> list:
@@ -60,7 +99,6 @@ def obtener_simbolos_crypto() -> list:
         Lista de símbolos en formato yfinance (ej. ['BTC-USD', 'ETH-USD', ...])
     """
     try:
-        # CoinGecko API pública — top 100 por market cap
         url = (
             "https://api.coingecko.com/api/v3/coins/markets"
             "?vs_currency=usd&order=market_cap_desc&per_page=100&page=1"
@@ -69,9 +107,7 @@ def obtener_simbolos_crypto() -> list:
         respuesta.raise_for_status()
         datos = respuesta.json()
 
-        # Convertir símbolo a formato yfinance — uppercase + sufijo -USD
         simbolos = [f"{moneda['symbol'].upper()}-USD" for moneda in datos]
-
         return simbolos
 
     except Exception as e:
@@ -82,16 +118,19 @@ def obtener_simbolos_crypto() -> list:
 def obtener_simbolos_divisas() -> list:
     """
     Retorna la lista de pares de divisas principales disponibles
-    en yfinance, incluyendo pares con el peso colombiano (COP).
+    en yfinance.
 
-    Los pares de divisas en yfinance usan el sufijo =X.
-    Formato: XXXYYY=X donde XXX es la divisa base y YYY la cotizada.
+    Nota sobre pares COP: yfinance reporta COPUSD=X como cuántos USD
+    vale 1 COP (~0.00025), lo cual produce valores muy pequeños.
+    Se usan los pares invertidos USDCOP=X, EURCOP=X, GBPCOP=X para
+    mostrar cuántos pesos colombianos vale 1 unidad de la divisa extranjera,
+    que es la convención estándar en Colombia.
 
     Retorna:
         Lista de símbolos de divisas en formato yfinance
     """
     divisas = [
-        # Pares mayores contra USD
+        # Pares mayores — cuántos USD vale 1 unidad de divisa base
         "EURUSD=X",   # Euro
         "GBPUSD=X",   # Libra esterlina
         "JPYUSD=X",   # Yen japonés
@@ -120,10 +159,11 @@ def obtener_simbolos_divisas() -> list:
         "IDRUSD=X",   # Rupia indonesia
         "MYRUSD=X",   # Ringgit malayo
 
-        # Pares con peso colombiano (COP)
-        "COPUSD=X",   # Peso colombiano a USD
-        "COPEUR=X",   # Peso colombiano a Euro
-        "COPGBP=X",   # Peso colombiano a Libra esterlina
+        # Pares con peso colombiano (COP) — convención local
+        # Cuántos COP vale 1 USD / 1 EUR / 1 GBP
+        "USDCOP=X",   # USD a peso colombiano
+        "EURCOP=X",   # Euro a peso colombiano
+        "GBPCOP=X",   # Libra a peso colombiano
     ]
 
     return divisas
@@ -145,27 +185,20 @@ def descargar_datos(simbolo: str, fecha_inicio: str, fecha_fin: str) -> pd.DataF
     Retorna:
         DataFrame con columnas 'date' y 'value' (precio de cierre)
     """
-    # Descargar datos desde yfinance
     ticker = yf.Ticker(simbolo)
     df = ticker.history(start=fecha_inicio, end=fecha_fin)
 
-    # Verificar que se obtuvieron datos
     if df.empty:
         raise ValueError(
             f"No se encontraron datos para el símbolo '{simbolo}' "
             f"en el rango {fecha_inicio} a {fecha_fin}."
         )
 
-    # Conservar solo el precio de cierre y limpiar el índice
     df = df[["Close"]].copy()
-    df.index = pd.to_datetime(df.index).tz_localize(None)  # Eliminar timezone
+    df.index = pd.to_datetime(df.index).tz_localize(None)
     df = df.reset_index()
     df.columns = ["date", "value"]
-
-    # Eliminar filas con valores nulos
     df = df.dropna()
-
-    # Ordenar por fecha ascendente
     df = df.sort_values("date").reset_index(drop=True)
 
     return df
@@ -178,45 +211,71 @@ def descargar_datos(simbolo: str, fecha_inicio: str, fecha_fin: str) -> pd.DataF
 def obtener_info_activo(simbolo: str) -> dict:
     """
     Obtiene información general del activo para mostrar
-    en las cards de la sección de información.
+    en la franja de información.
+
+    Campos retornados:
+        nombre, simbolo, precio, variacion, volumen, moneda,
+        sector, market_cap, pe_ratio, beta, semana_52_max,
+        semana_52_min, industria
 
     Parámetros:
-        simbolo: símbolo del activo (ej. 'AAPL', 'BTC-USD', 'EURUSD=X')
+        simbolo: símbolo del activo
 
     Retorna:
-        Diccionario con nombre, precio, variación, volumen, moneda y sector
+        Diccionario con todos los campos disponibles
     """
     try:
         ticker = yf.Ticker(simbolo)
         info = ticker.info
 
-        # Extraer campos relevantes con valores por defecto
-        nombre   = info.get("longName") or info.get("shortName") or simbolo
-        precio   = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+        nombre    = info.get("longName") or info.get("shortName") or simbolo
+        precio    = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
         variacion = info.get("regularMarketChangePercent") or 0.0
-        volumen  = info.get("regularMarketVolume") or info.get("volume") or 0
-        moneda   = info.get("currency") or "USD"
-        sector   = info.get("sector") or "N/A"
+        volumen   = info.get("regularMarketVolume") or info.get("volume") or 0
+        moneda    = info.get("currency") or "USD"
+        sector    = info.get("sector") or None
+        industria = info.get("industry") or None
+
+        # Métricas adicionales — disponibles para acciones, no para crypto/divisas
+        market_cap    = info.get("marketCap") or None
+        pe_ratio      = info.get("trailingPE") or info.get("forwardPE") or None
+        beta          = info.get("beta") or None
+        semana_52_max = info.get("fiftyTwoWeekHigh") or None
+        semana_52_min = info.get("fiftyTwoWeekLow") or None
+        dividendo     = info.get("dividendYield") or None
 
         return {
-            "nombre"  : nombre,
-            "simbolo" : simbolo,
-            "precio"  : round(precio, 4),
-            "variacion": round(variacion, 2),
-            "volumen" : volumen,
-            "moneda"  : moneda,
-            "sector"  : sector
+            "nombre"      : nombre,
+            "simbolo"     : simbolo,
+            "precio"      : round(float(precio), 2),
+            "variacion"   : round(float(variacion), 2),
+            "volumen"     : volumen,
+            "moneda"      : moneda,
+            "sector"      : sector,
+            "industria"   : industria,
+            "market_cap"  : market_cap,
+            "pe_ratio"    : round(float(pe_ratio), 2) if pe_ratio else None,
+            "beta"        : round(float(beta), 2) if beta else None,
+            "semana_52_max": round(float(semana_52_max), 2) if semana_52_max else None,
+            "semana_52_min": round(float(semana_52_min), 2) if semana_52_min else None,
+            "dividendo"   : round(float(dividendo) * 100, 2) if dividendo else None,
         }
 
     except Exception as e:
-        # Si falla la consulta, retornar datos mínimos sin crashear la app
         print(f"Error obteniendo info del activo '{simbolo}': {e}")
         return {
-            "nombre"  : simbolo,
-            "simbolo" : simbolo,
-            "precio"  : 0.0,
-            "variacion": 0.0,
-            "volumen" : 0,
-            "moneda"  : "USD",
-            "sector"  : "N/A"
+            "nombre"      : simbolo,
+            "simbolo"     : simbolo,
+            "precio"      : 0.0,
+            "variacion"   : 0.0,
+            "volumen"     : 0,
+            "moneda"      : "USD",
+            "sector"      : None,
+            "industria"   : None,
+            "market_cap"  : None,
+            "pe_ratio"    : None,
+            "beta"        : None,
+            "semana_52_max": None,
+            "semana_52_min": None,
+            "dividendo"   : None,
         }

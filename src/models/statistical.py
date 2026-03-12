@@ -63,10 +63,8 @@ def entrenar_modelos_estadisticos(
     Retorna:
         Tupla (modelo_fitted, predicciones_dataframe)
     """
-    # Convertir al formato requerido por statsforecast
     df_sf = preparar_datos_statsforecast(df_train, simbolo)
 
-    # Definir los tres modelos estadísticos
     # allowdrift=True replica el comportamiento de modeltime (R):
     # ARIMA with drift captura tendencia lineal en series financieras alcistas
     modelos = [
@@ -75,14 +73,12 @@ def entrenar_modelos_estadisticos(
         DynamicOptimizedTheta(season_length=5)
     ]
 
-    # Crear el objeto StatsForecast — n_jobs=-1 usa todos los núcleos disponibles
     sf = StatsForecast(
         models=modelos,
         freq=frecuencia,
         n_jobs=-1
     )
 
-    # Entrenar los modelos
     sf.fit(df_sf)
 
     # Generar predicciones con intervalos de confianza al 90%
@@ -116,7 +112,6 @@ def predecir_test_estadisticos(
     """
     horizonte_test = len(df_test)
 
-    # Entrenar y predecir sobre el horizonte del test
     _, predicciones = entrenar_modelos_estadisticos(
         df_train=df_train,
         simbolo=simbolo,
@@ -134,18 +129,36 @@ def predecir_test_estadisticos(
 def detectar_frecuencia(simbolo: str) -> str:
     """
     Detecta la frecuencia apropiada según el tipo de activo.
-    Las acciones operan en días hábiles, las crypto todos los días.
+
+    Reglas:
+        'D' — Crypto: sufijo -USD con letras (BTC-USD, ETH-USD, etc.)
+        'B' — Todo lo demás: acciones, divisas, índices (^DJI, ^GSPC),
+              futuros (GC=F, CL=F), pares COP (USDCOP=X), etc.
+
+    Los índices bursátiles y futuros operan en días hábiles.
+    Las divisas también operan en días hábiles desde el punto de
+    vista de los datos disponibles en yfinance.
 
     Parámetros:
         simbolo: símbolo del activo
 
     Retorna:
         'D' para crypto (todos los días)
-        'B' para acciones y divisas (días hábiles)
+        'B' para acciones, índices, futuros y divisas (días hábiles)
     """
-    # Las crypto tienen sufijo -USD y operan 24/7
-    if simbolo.endswith("-USD"):
-        return "D"
+    # Crypto: sufijo -USD con parte alfabética antes del guion
+    # Ejemplos: BTC-USD, ETH-USD, SOL-USD
+    # Excluir: pares de divisas que también terminan en -USD pero son letras
+    # La distinción es que las crypto no tienen =X al final
+    if simbolo.endswith("-USD") and "=" not in simbolo:
+        parte_base = simbolo.replace("-USD", "")
+        if parte_base.isalpha():
+            return "D"
 
-    # Acciones y divisas operan en días hábiles
+    # Todo lo demás opera en días hábiles:
+    # Acciones: AAPL, MSFT, BRK-B
+    # Índices: ^DJI, ^GSPC, ^IXIC, ^N225, ^BVSP, ^COLCAP
+    # Futuros: GC=F, CL=F, SI=F, BZ=F
+    # Divisas: EURUSD=X, USDCOP=X, GBPUSD=X
+    # Acciones internacionales: 000001.SS, ^KS11
     return "B"

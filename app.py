@@ -10,7 +10,7 @@ from dash import html, dcc
 from src.data.loader import (
     obtener_simbolos_sp500,
     obtener_simbolos_crypto,
-    obtener_simbolos_divisas
+    obtener_simbolos_divisas,
 )
 from src.layout.components import (
     crear_header,
@@ -37,6 +37,7 @@ app = dash.Dash(
 )
 
 app.title = "FinForecast — Financial Asset Forecasting"
+server = app.server
 
 
 # ============================================================
@@ -52,7 +53,8 @@ simbolos_crypto = obtener_simbolos_crypto()
 simbolos_divisas = obtener_simbolos_divisas()
 
 print(f"Símbolos cargados: {len(simbolos_sp500)} SP500 · "
-      f"{len(simbolos_crypto)} crypto · {len(simbolos_divisas)} divisas")
+      f"{len(simbolos_crypto)} crypto · "
+      f"{len(simbolos_divisas)} divisas")
 
 
 # ============================================================
@@ -69,7 +71,7 @@ app.layout = html.Div(
         crear_topbar(
             simbolos_sp500=simbolos_sp500,
             simbolos_crypto=simbolos_crypto,
-            simbolos_divisas=simbolos_divisas
+            simbolos_divisas=simbolos_divisas,
         ),
 
         # 3. Área de contenido principal

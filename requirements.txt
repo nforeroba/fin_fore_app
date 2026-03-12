@@ -1,6 +1,14 @@
+# ============================================================
+# requirements.txt — Dependencias FinForecast
+# Hugging Face Spaces — Python 3.11
+# ============================================================
+
 # Framework principal
 dash==2.18.2
 dash-bootstrap-components==1.6.0
+
+# Servidor de producción (HF Spaces usa gunicorn)
+gunicorn==22.0.0
 
 # Datos financieros
 yfinance==0.2.51
@@ -24,3 +32,4 @@ plotly==5.24.1
 # Utilidades
 pandas==2.2.3
 numpy==1.26.4
+python-dateutil==2.9.0
