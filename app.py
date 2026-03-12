@@ -15,7 +15,10 @@ from src.data.loader import (
 from src.layout.components import (
     crear_header,
     crear_topbar,
-    COLORES
+    COLORES,
+    MAX_WIDTH,
+    PADDING_H,
+    GAP_V,
 )
 from src.callbacks.forecast import registrar_callbacks
 
@@ -90,8 +93,8 @@ app.layout = html.Div(
                 ),
             ],
             style={
-                "padding" : "0 24px 24px 24px",
-                "maxWidth": "1400px",
+                "padding" : f"0 {PADDING_H} {GAP_V} {PADDING_H}",
+                "maxWidth": MAX_WIDTH,
                 "margin"  : "0 auto",
                 "width"   : "100%",
             }

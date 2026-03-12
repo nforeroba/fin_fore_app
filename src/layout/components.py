@@ -30,22 +30,25 @@ ESTILO_CARD = {
     "border"         : f"1px solid {COLORES['borde']}",
     "borderRadius"   : "8px",
     "padding"        : "20px",
+    "marginBottom"   : "16px",
 }
 
-# Ancho máximo compartido por todos los contenedores
+# ============================================================
+# CONSTANTES DE LAYOUT
+# ============================================================
+
 MAX_WIDTH = "1400px"
-# Padding lateral compartido
 PADDING_H = "24px"
+GAP_V     = "16px"
 
 
 # ============================================================
-# FRANJA DE TÍTULO
+# FRANJA DE TÍTULO — FULL WIDTH
 # ============================================================
 
 def crear_header() -> html.Div:
     """
-    Título de la aplicación sin fondo propio — usa el fondo
-    principal para integrarse con el resto del layout.
+    Franja superior full width con título y subtítulo.
     """
     return html.Div(
         children=[
@@ -81,19 +84,21 @@ def crear_header() -> html.Div:
                     ),
                 ],
                 style={
-                    "maxWidth"  : MAX_WIDTH,
-                    "margin"    : "0 auto",
-                    "padding"   : f"0 {PADDING_H}",
-                    "display"   : "flex",
-                    "alignItems": "center",
+                    "maxWidth"      : MAX_WIDTH,
+                    "margin"        : "0 auto",
+                    "padding"       : f"0 {PADDING_H}",
+                    "display"       : "flex",
+                    "alignItems"    : "center",
+                    "justifyContent": "center",
+                    "gap"           : "0",
                 }
             )
         ],
         style={
-            # Sin backgroundColor — hereda el fondo principal #0D1117
-            "borderBottom": f"1px solid {COLORES['borde']}",
-            "padding"     : "14px 0",
-            "width"       : "100%",
+            "backgroundColor": COLORES["fondo_card"],
+            "borderBottom"   : f"1px solid {COLORES['borde']}",
+            "padding"        : "14px 0",
+            "width"          : "100%",
         }
     )
 
@@ -108,19 +113,48 @@ def crear_topbar(
     simbolos_divisas: list,
 ) -> html.Div:
     """
-    Barra de control horizontal con todos los inputs del forecast:
-    símbolo, fechas, test split, horizonte y botones RUN/RESET.
+    Barra de control horizontal con todos los inputs del forecast.
+    Dropdown de símbolo con grupos: S&P 500 / Crypto / FX.
 
     Parámetros:
         simbolos_sp500  : lista de símbolos S&P500
         simbolos_crypto : lista de símbolos crypto
         simbolos_divisas: lista de símbolos de divisas
     """
-    opciones = (
-        [{"label": f"📈 {s}", "value": s} for s in simbolos_sp500]  +
-        [{"label": f"₿ {s}",  "value": s} for s in simbolos_crypto] +
-        [{"label": f"💱 {s}", "value": s} for s in simbolos_divisas]
-    )
+    opciones = [
+        {
+            "label": html.Span("S&P 500", style={
+                "color": "#7D8590", "fontFamily": "'Space Mono', monospace",
+                "fontSize": "0.65rem", "letterSpacing": "1px",
+            }),
+            "value": "group_sp500", "disabled": True,
+        },
+        *[{"label": s, "value": s} for s in simbolos_sp500],
+        {
+            "label": html.Span("─────────────", style={"color": "#30363D", "fontSize": "0.5rem"}),
+            "value": "sep1", "disabled": True,
+        },
+        {
+            "label": html.Span("CRYPTO", style={
+                "color": "#7D8590", "fontFamily": "'Space Mono', monospace",
+                "fontSize": "0.65rem", "letterSpacing": "1px",
+            }),
+            "value": "group_crypto", "disabled": True,
+        },
+        *[{"label": s, "value": s} for s in simbolos_crypto],
+        {
+            "label": html.Span("─────────────", style={"color": "#30363D", "fontSize": "0.5rem"}),
+            "value": "sep2", "disabled": True,
+        },
+        {
+            "label": html.Span("FX / DIVISAS", style={
+                "color": "#7D8590", "fontFamily": "'Space Mono', monospace",
+                "fontSize": "0.65rem", "letterSpacing": "1px",
+            }),
+            "value": "group_fx", "disabled": True,
+        },
+        *[{"label": s, "value": s} for s in simbolos_divisas],
+    ]
 
     estilo_label = {
         "color"        : COLORES["texto_secundario"],
@@ -153,10 +187,10 @@ def crear_topbar(
                             value="AAPL",
                             clearable=False,
                             searchable=True,
-                            className="dropdown-dark",
-                            style={"minWidth": "160px"},
+                            className="dropdown-dark dropdown-grouped",
+                            style={"minWidth": "180px"},
                         ),
-                    ], style={"flex": "2", "minWidth": "160px"}),
+                    ], style={"flex": "2", "minWidth": "180px"}),
 
                     separador_v(),
 
@@ -245,17 +279,16 @@ def crear_topbar(
                     "alignItems": "flex-end",
                     "gap"       : "16px",
                     "flexWrap"  : "wrap",
+                    "maxWidth"  : MAX_WIDTH,
+                    "margin"    : "0 auto",
                     "width"     : "100%",
                 }
             )
         ],
         style={
             **ESTILO_CARD,
-            "maxWidth"    : MAX_WIDTH,
-            "margin"      : f"16px auto",
-            "marginLeft"  : PADDING_H,
-            "marginRight" : PADDING_H,
-            "boxSizing"   : "border-box",
+            "borderRadius": "8px",
+            "margin"      : f"{GAP_V} {PADDING_H}",
         }
     )
 
@@ -267,7 +300,6 @@ def crear_topbar(
 def crear_info_activo(info: dict) -> html.Div:
     """
     Franja horizontal con la información completa del activo.
-    Mismo ancho máximo y márgenes que la topbar.
 
     Parámetros:
         info: diccionario retornado por obtener_info_activo() con:
@@ -357,12 +389,14 @@ def crear_info_activo(info: dict) -> html.Div:
         })
 
     def opcional(label, valor_fmt, condicion=True, color=None):
+        """Retorna [sep, item] si la condicion se cumple, si no []."""
         if not condicion:
             return []
         return [sep(), item(label, valor_fmt, color)]
 
     industria = info.get("industria", "") or ""
     sector    = info.get("sector", "")    or ""
+    # Mostrar industria si existe, sector como fallback
     etiqueta_sector = industria if industria and industria != "N/A" else sector
 
     return html.Div(
@@ -389,26 +423,22 @@ def crear_info_activo(info: dict) -> html.Div:
                                 "fontSize"  : "0.85rem",
                             }
                         ),
-                    ], style={
-                        "display"   : "flex",
-                        "alignItems": "center",
-                        "flex"      : "1",
-                        "minWidth"  : "160px",
-                    }),
+                    ], style={"display": "flex", "alignItems": "center", "flex": "1", "minWidth": "160px"}),
 
                     sep(),
-                    item("Precio",   precio_fmt),
+                    item("Precio",    precio_fmt),
                     sep(),
-                    item("Var. día", variacion_fmt, color_variacion),
+                    item("Var. día",  variacion_fmt, color_variacion),
                     sep(),
-                    item("Volumen",  volumen_fmt),
+                    item("Volumen",   volumen_fmt),
 
-                    *opcional("Mkt Cap",    market_cap_fmt, market_cap > 0),
-                    *opcional("P/E",        pe_fmt,         pe_ratio is not None),
-                    *opcional("Beta",       beta_fmt,       beta is not None),
-                    *opcional("52w",        rango_fmt,      bool(s52_max and s52_min)),
-                    *opcional("Div. yield", dividendo_fmt,  dividendo is not None),
-                    *opcional("Sector",     etiqueta_sector,
+                    # Campos opcionales — solo se muestran si tienen valor
+                    *opcional("Mkt Cap",   market_cap_fmt, market_cap > 0),
+                    *opcional("P/E",       pe_fmt,         pe_ratio is not None),
+                    *opcional("Beta",      beta_fmt,       beta is not None),
+                    *opcional("52w",       rango_fmt,      s52_max and s52_min),
+                    *opcional("Div. yield",dividendo_fmt,  dividendo is not None),
+                    *opcional("Sector",    etiqueta_sector,
                                bool(etiqueta_sector and etiqueta_sector != "N/A")),
 
                 ],
@@ -416,6 +446,8 @@ def crear_info_activo(info: dict) -> html.Div:
                     "display"   : "flex",
                     "alignItems": "center",
                     "gap"       : "20px",
+                    "maxWidth"  : MAX_WIDTH,
+                    "margin"    : "0 auto",
                     "width"     : "100%",
                     "flexWrap"  : "wrap",
                 }
@@ -423,10 +455,6 @@ def crear_info_activo(info: dict) -> html.Div:
         ],
         style={
             **ESTILO_CARD,
-            "maxWidth"   : MAX_WIDTH,
-            "margin"     : f"0 auto 16px auto",
-            "marginLeft" : PADDING_H,
-            "marginRight": PADDING_H,
-            "boxSizing"  : "border-box",
+            "margin": f"0 {PADDING_H} {GAP_V} {PADDING_H}",
         }
     )

@@ -5,7 +5,6 @@
 # ============================================================
 
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 from src.layout.components import COLORES
 
@@ -54,9 +53,10 @@ LAYOUT_BASE = dict(
         font=dict(size=10, family="'Space Mono', monospace"),
         orientation ="v",
         x=1.01, y=1,
+        groupclick="toggleitem",
     ),
     margin=dict(l=50, r=180, t=50, b=50),
-    hovermode="closest",
+    hovermode="x unified",
 )
 
 
@@ -83,69 +83,36 @@ def hex_a_rgba(hex_color: str, opacidad: float = 0.10) -> str:
 
 
 # ============================================================
-# UTILIDAD — Agregar traza de modelo con banda CI integrada
+# UTILIDAD — Construir error_y para intervalos de confianza
 # ============================================================
 
-def _agregar_traza_modelo(
-    fig: go.Figure,
-    df_modelo: pd.DataFrame,
-    nombre: str,
-    color: str,
-    dash: str = "solid",
-) -> None:
+def _construir_error_y(df_modelo: pd.DataFrame, color: str) -> dict:
     """
-    Agrega dos trazas para un modelo: banda CI y línea de predicción.
+    Construye el dict error_y para go.Scatter con intervalos de confianza
+    asimétricos (yhat_lower / yhat_upper).
 
-    La banda CI usa fill='toself' con un polígono cerrado.
-    La razón por la que el toggle falla con legendgroup es que
-    Plotly no garantiza sincronización entre trazas no contiguas.
-    La solución es no usar legendgroup en absoluto:
-
-    - La banda CI tiene showlegend=False — no aparece en la leyenda
-    - La línea tiene showlegend=True — aparece en la leyenda
-    - Ambas comparten el mismo nombre para que el toggle de
-      visibilidad las afecte: al hacer clic en la leyenda, Plotly
-      oculta TODAS las trazas con el mismo 'name' en la figura.
-
-    Esto funciona porque Plotly vincula trazas por 'name' cuando
-    no hay legendgroup, siempre que ambas trazas tengan el mismo
-    nombre exacto.
+    Las error bars son parte de la misma traza que la línea, por lo que
+    el toggle de leyenda las oculta/muestra automáticamente junto con ella.
 
     Parámetros:
-        fig      : figura Plotly a modificar
-        df_modelo: DataFrame con columnas ds, yhat, yhat_lower, yhat_upper
-        nombre   : nombre del modelo (aparece en la leyenda)
-        color    : color hex del modelo
-        dash     : estilo de línea ('solid', 'dot', 'dash')
+        df_modelo: DataFrame con columnas yhat, yhat_lower, yhat_upper
+        color    : color hex del modelo para las barras
+
+    Retorna:
+        Dict compatible con el parámetro error_y de go.Scatter
     """
-    ds      = df_modelo["ds"]
-    y_upper = df_modelo["yhat_upper"]
-    y_lower = df_modelo["yhat_lower"]
+    array_plus  = (df_modelo["yhat_upper"] - df_modelo["yhat"]).clip(lower=0).tolist()
+    array_minus = (df_modelo["yhat"]       - df_modelo["yhat_lower"]).clip(lower=0).tolist()
 
-    # Polígono cerrado: superior de izq a der, inferior de der a izq
-    x_banda = pd.concat([ds, ds.iloc[::-1]], ignore_index=True)
-    y_banda = pd.concat([y_upper, y_lower.iloc[::-1]], ignore_index=True)
-
-    # Traza 1 — banda CI, mismo nombre que la línea, sin entrada en leyenda
-    fig.add_trace(go.Scatter(
-        x=x_banda,
-        y=y_banda,
-        fill="toself",
-        fillcolor=hex_a_rgba(color, 0.12),
-        line=dict(color="rgba(0,0,0,0)", width=0),
-        name=nombre,
-        showlegend=False,
-        hoverinfo="skip",
-    ))
-
-    # Traza 2 — línea de predicción, aparece en la leyenda
-    fig.add_trace(go.Scatter(
-        x=ds,
-        y=df_modelo["yhat"],
-        name=nombre,
-        line=dict(color=color, width=1.5, dash=dash),
-        hovertemplate=f"%{{y:,.4f}}<extra>{nombre}</extra>",
-    ))
+    return dict(
+        type      ="data",
+        array     =array_plus,
+        arrayminus=array_minus,
+        visible   =True,
+        color     =hex_a_rgba(color, 0.45),
+        thickness =1.2,
+        width     =0,           # sin caps horizontales — más limpio
+    )
 
 
 # ============================================================
@@ -163,8 +130,8 @@ def grafico_validacion(
     completa y las predicciones de cada modelo sobre el test set,
     con bandas de intervalos de confianza.
 
-    Al hacer clic en un modelo en la leyenda, su línea y su banda
-    CI desaparecen juntas (comparten el mismo 'name').
+    El legendgroup vincula la línea y la banda CI de cada modelo
+    para que aparezcan y desaparezcan juntas al hacer clic en la leyenda.
 
     Parámetros:
         df_completo: serie histórica completa
@@ -182,6 +149,7 @@ def grafico_validacion(
         x=df_completo["date"],
         y=df_completo["value"],
         name="ACTUAL",
+        legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
         hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
     ))
@@ -190,7 +158,27 @@ def grafico_validacion(
     for modelo in pred_test["modelo"].unique():
         df_modelo = pred_test[pred_test["modelo"] == modelo].copy()
         color = COLORES_MODELOS.get(modelo, "#FFFFFF")
-        _agregar_traza_modelo(fig, df_modelo, modelo, color, dash="dot")
+
+        # Línea de predicción con error bars CI — toggle funciona porque son la misma traza
+        fig.add_trace(go.Scatter(
+            x=df_modelo["ds"],
+            y=df_modelo["yhat"],
+            name=modelo,
+            legendgroup=modelo,
+            line=dict(color=color, width=1.5, dash="dot"),
+            error_y=_construir_error_y(df_modelo, color),
+            hovertemplate=(
+                f"<b>{modelo}</b><br>"
+                "Fecha: %{x}<br>"
+                "Pred: %{y:,.4f}<br>"
+                "CI±: [%{customdata[0]:,.4f} – %{customdata[1]:,.4f}]"
+                "<extra></extra>"
+            ),
+            customdata=list(zip(
+                df_modelo["yhat_lower"].tolist(),
+                df_modelo["yhat_upper"].tolist()
+            )),
+        ))
 
     # Línea vertical — inicio del test set
     fecha_inicio_test = str(df_test["date"].iloc[0])
@@ -238,8 +226,8 @@ def grafico_forecast(
     completa y las predicciones hacia adelante de cada modelo,
     con bandas de intervalos de confianza.
 
-    Al hacer clic en un modelo en la leyenda, su línea y su banda
-    CI desaparecen juntas (comparten el mismo 'name').
+    El legendgroup vincula la línea y la banda CI de cada modelo
+    para que aparezcan y desaparezcan juntas al hacer clic en la leyenda.
 
     Parámetros:
         df_completo    : serie histórica completa
@@ -257,6 +245,7 @@ def grafico_forecast(
         x=df_completo["date"],
         y=df_completo["value"],
         name="ACTUAL",
+        legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
         hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
     ))
@@ -265,7 +254,27 @@ def grafico_forecast(
     for modelo in pred_forecast["modelo"].unique():
         df_modelo = pred_forecast[pred_forecast["modelo"] == modelo].copy()
         color = COLORES_MODELOS.get(modelo, "#FFFFFF")
-        _agregar_traza_modelo(fig, df_modelo, modelo, color, dash="solid")
+
+        # Línea de forecast con error bars CI — toggle funciona porque son la misma traza
+        fig.add_trace(go.Scatter(
+            x=df_modelo["ds"],
+            y=df_modelo["yhat"],
+            name=modelo,
+            legendgroup=modelo,
+            line=dict(color=color, width=1.5),
+            error_y=_construir_error_y(df_modelo, color),
+            hovertemplate=(
+                f"<b>{modelo}</b><br>"
+                "Fecha: %{x}<br>"
+                "Pred: %{y:,.4f}<br>"
+                "CI±: [%{customdata[0]:,.4f} – %{customdata[1]:,.4f}]"
+                "<extra></extra>"
+            ),
+            customdata=list(zip(
+                df_modelo["yhat_lower"].tolist(),
+                df_modelo["yhat_upper"].tolist()
+            )),
+        ))
 
     # Línea vertical — inicio del forecast
     fecha_inicio_forecast = str(pred_forecast["ds"].min())

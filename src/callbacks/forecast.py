@@ -143,7 +143,7 @@ def registrar_callbacks(app):
                     ),
                     dcc.Graph(
                         figure=fig_validacion,
-                        config={"displayModeBar": True, "responsive": True},
+                        config={"displayModeBar": True, "responsive": True, "modeBarButtonsToAdd": ["hoverClosestCartesian", "hoverCompareCartesian"]},
                         style={"width": "100%"}
                     ),
                 ], style=ESTILO_CARD),
@@ -190,7 +190,7 @@ def registrar_callbacks(app):
                     ),
                     dcc.Graph(
                         figure=fig_forecast,
-                        config={"displayModeBar": True, "responsive": True},
+                        config={"displayModeBar": True, "responsive": True, "modeBarButtonsToAdd": ["hoverClosestCartesian", "hoverCompareCartesian"]},
                         style={"width": "100%"}
                     ),
                 ], style=ESTILO_CARD),
