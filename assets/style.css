@@ -1,67 +1,340 @@
 /* ============================================================
-   style.css — Estilos globales de FinForecast
-   Terminal Financiero Moderno — tema oscuro
+   style.css — Estilos globales FinForecast
+   Tema oscuro "Terminal Financiero"
+   Fuentes: Space Mono (monospace) + DM Sans (sans-serif)
    ============================================================ */
 
+/* ============================================================
+   RESET Y BASE
+   ============================================================ */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 body {
-    background-color: #0D1117;
+    background-color: #0D1117 !important;
+    color: #E6EDF3 !important;
+    font-family: 'DM Sans', sans-serif !important;
     margin: 0;
     padding: 0;
 }
 
-* { box-sizing: border-box; }
+/* ============================================================
+   DROPDOWN — Tema oscuro
+   Sobrescribe los estilos blancos de dcc.Dropdown
+   ============================================================ */
 
-/* Scrollbar oscura */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #0D1117; }
-::-webkit-scrollbar-thumb { background: #30363D; border-radius: 3px; }
+.dropdown-dark .Select-control,
+.dropdown-dark .Select-menu-outer,
+.dropdown-dark .VirtualizedSelectFocusedOption,
+.dropdown-dark .VirtualizedSelectOption {
+    background-color: #1C2128 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+}
 
-/* Dropdown oscuro */
+/* Contenedor principal del dropdown */
 .dropdown-dark .Select-control {
     background-color: #1C2128 !important;
-    border-color: #30363D !important;
-    color: #E6EDF3 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 6px !important;
+    min-height: 36px !important;
+    cursor: pointer;
 }
+
+/* Texto del valor seleccionado */
+.dropdown-dark .Select-value-label,
+.dropdown-dark .Select-placeholder {
+    color: #E6EDF3 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.875rem !important;
+}
+
+/* Input de búsqueda dentro del dropdown */
+.dropdown-dark input {
+    color: #E6EDF3 !important;
+    font-family: 'DM Sans', sans-serif !important;
+}
+
+/* Menú desplegable */
 .dropdown-dark .Select-menu-outer {
     background-color: #1C2128 !important;
-    border-color: #30363D !important;
+    border: 1px solid #30363D !important;
+    border-radius: 6px !important;
+    z-index: 9999 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
 }
-.dropdown-dark .Select-option {
+
+/* Opciones del menú */
+.dropdown-dark .VirtualizedSelectOption {
     background-color: #1C2128 !important;
     color: #E6EDF3 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.875rem !important;
+    padding: 8px 12px !important;
 }
-.dropdown-dark .Select-option:hover {
-    background-color: #30363D !important;
+
+/* Opción hover */
+.dropdown-dark .VirtualizedSelectFocusedOption {
+    background-color: #00C896 !important;
+    color: #0D1117 !important;
 }
-.dropdown-dark .Select-value-label {
+
+/* Flecha del dropdown */
+.dropdown-dark .Select-arrow {
+    border-top-color: #7D8590 !important;
+}
+
+.dropdown-dark .Select-arrow-zone:hover .Select-arrow {
+    border-top-color: #00C896 !important;
+}
+
+/* Focus state */
+.dropdown-dark .Select-control:hover {
+    border-color: #00C896 !important;
+}
+
+.dropdown-dark.is-focused .Select-control {
+    border-color: #00C896 !important;
+    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
+}
+
+/* ============================================================
+   DATE PICKER — Tema oscuro y z-index correcto
+   ============================================================ */
+
+.date-picker-dark .DateInput,
+.date-picker-dark .SingleDatePickerInput {
+    background-color: #1C2128 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 6px !important;
+}
+
+.date-picker-dark .DateInput_input {
+    background-color: #1C2128 !important;
     color: #E6EDF3 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.8rem !important;
+    border: none !important;
+    padding: 6px 10px !important;
+    border-radius: 6px !important;
+    width: 100% !important;
 }
 
-/* Slider oscuro */
-.slider-dark .rc-slider-track { background-color: #00C896; }
-.slider-dark .rc-slider-handle {
-    border-color: #00C896;
-    background-color: #00C896;
+.date-picker-dark .DateInput_input:focus {
+    outline: none !important;
+    border-bottom: 2px solid #00C896 !important;
 }
 
-/* DatePicker oscuro */
-.date-picker-dark input {
+/* Calendario popup — z-index alto para aparecer al frente */
+.date-picker-dark .SingleDatePicker_picker,
+.DayPicker,
+.DayPicker__withBorder {
+    background-color: #161B22 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 8px !important;
+    z-index: 9999 !important;
+    position: relative;
+}
+
+/* Contenedor del picker con z-index */
+.date-picker-dark .SingleDatePicker {
+    z-index: 9999 !important;
+}
+
+.date-picker-dark .SingleDatePicker_picker {
+    z-index: 9999 !important;
+}
+
+/* Días del calendario */
+.CalendarDay__default {
+    background-color: #161B22 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+}
+
+.CalendarDay__default:hover {
+    background-color: #00C896 !important;
+    color: #0D1117 !important;
+}
+
+.CalendarDay__selected {
+    background-color: #00C896 !important;
+    color: #0D1117 !important;
+    border-color: #00C896 !important;
+}
+
+.CalendarDay__selected:hover {
+    background-color: #00A87E !important;
+}
+
+/* Header del calendario — mes y año */
+.DayPickerNavigation_button {
     background-color: #1C2128 !important;
     border-color: #30363D !important;
     color: #E6EDF3 !important;
-    border-radius: 6px;
-    padding: 8px;
-    width: 100%;
 }
 
-/* Botones */
-#btn-run:hover { opacity: 0.85; }
-#btn-reset:hover {
-    border-color: #8B949E !important;
+.DayPickerNavigation_svg__horizontal {
+    fill: #E6EDF3 !important;
+}
+
+.CalendarMonth_caption {
     color: #E6EDF3 !important;
+    font-family: 'DM Sans', sans-serif !important;
 }
 
-/* Responsividad */
+.DayOfWeek {
+    color: #7D8590 !important;
+}
+
+/* Días fuera del rango del mes */
+.CalendarDay__outside {
+    color: #30363D !important;
+}
+
+/* Fondo negro del polígono — fix del bug visual */
+.DateInput_fang,
+.DateInput_fangShape {
+    fill: #161B22 !important;
+    stroke: #30363D !important;
+}
+
+/* ============================================================
+   INPUT NUMBER — Tema oscuro con flechitas +/-
+   ============================================================ */
+
+.input-number-dark {
+    background-color: #1C2128 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 6px !important;
+    color: #E6EDF3 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.9rem !important;
+    padding: 6px 8px !important;
+    height: 36px !important;
+    text-align: center !important;
+    -moz-appearance: number-input;
+}
+
+.input-number-dark:focus {
+    outline: none !important;
+    border-color: #00C896 !important;
+    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
+}
+
+.input-number-dark:hover {
+    border-color: #00C896 !important;
+}
+
+/* Flechitas del input number — color claro en tema oscuro */
+.input-number-dark::-webkit-inner-spin-button,
+.input-number-dark::-webkit-outer-spin-button {
+    opacity: 1 !important;
+    filter: invert(1) !important;
+    cursor: pointer !important;
+    height: 24px !important;
+}
+
+/* ============================================================
+   BOTONES — RUN y RESET
+   ============================================================ */
+
+.btn-run {
+    background-color: #00C896 !important;
+    color: #0D1117 !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    padding: 8px 16px !important;
+    cursor: pointer !important;
+    letter-spacing: 1px !important;
+    white-space: nowrap !important;
+    transition: background-color 0.15s ease, transform 0.1s ease !important;
+    min-width: 130px !important;
+}
+
+.btn-run:hover {
+    background-color: #00A87E !important;
+    transform: translateY(-1px) !important;
+}
+
+.btn-run:active {
+    transform: translateY(0) !important;
+}
+
+.btn-reset {
+    background-color: transparent !important;
+    color: #7D8590 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 6px !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.75rem !important;
+    padding: 6px 16px !important;
+    cursor: pointer !important;
+    letter-spacing: 1px !important;
+    white-space: nowrap !important;
+    transition: color 0.15s ease, border-color 0.15s ease !important;
+    min-width: 130px !important;
+}
+
+.btn-reset:hover {
+    color: #E6EDF3 !important;
+    border-color: #7D8590 !important;
+}
+
+/* ============================================================
+   SPINNER DE CARGA
+   ============================================================ */
+
+._dash-loading {
+    color: #00C896 !important;
+}
+
+/* ============================================================
+   SCROLLBAR — Estilo oscuro
+   ============================================================ */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0D1117;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363D;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #7D8590;
+}
+
+/* ============================================================
+   RESPONSIVIDAD MÓVIL
+   ============================================================ */
+
 @media (max-width: 768px) {
-    .panel-lateral { position: static !important; }
+    /* Topbar en columna en móvil */
+    .topbar-controles {
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+
+    /* Inputs a ancho completo */
+    .topbar-controles > div {
+        width: 100% !important;
+        min-width: unset !important;
+    }
+
+    .btn-run,
+    .btn-reset {
+        width: 100% !important;
+    }
 }

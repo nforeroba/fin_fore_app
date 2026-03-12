@@ -1,32 +1,31 @@
 # ============================================================
-# components.py — Componentes reutilizables de la interfaz
-# Define el header, panel de control, cards de información
-# del activo y estructura general del layout.
+# components.py — Componentes UI reutilizables
+# Define el layout visual de la aplicación: franja de título,
+# topbar de control, franja de info del activo y utilidades.
 # ============================================================
 
-import dash_bootstrap_components as dbc
 from dash import html, dcc
-from datetime import date, timedelta
+import dash_bootstrap_components as dbc
+from datetime import date
 
 
 # ============================================================
-# PALETA DE COLORES — Terminal Financiero Moderno
+# PALETA DE COLORES — TEMA OSCURO "TERMINAL FINANCIERO"
 # ============================================================
 
 COLORES = {
-    "fondo"          : "#0D1117",
-    "fondo_card"     : "#161B22",
-    "fondo_input"    : "#1C2128",
-    "borde"          : "#30363D",
-    "texto_principal": "#E6EDF3",
-    "texto_secundario": "#8B949E",
-    "acento_verde"   : "#00C896",
-    "acento_rojo"    : "#FF6B6B",
-    "acento_azul"    : "#58A6FF",
-    "acento_amarillo": "#F0B429",
+    "fondo"            : "#0D1117",
+    "fondo_card"       : "#161B22",
+    "fondo_input"      : "#1C2128",
+    "borde"            : "#30363D",
+    "texto_principal"  : "#E6EDF3",
+    "texto_secundario" : "#7D8590",
+    "acento_verde"     : "#00C896",
+    "acento_rojo"      : "#FF6B6B",
+    "acento_azul"      : "#58A6FF",
 }
 
-# Estilo base para cards
+# Estilo base reutilizable para cards/secciones
 ESTILO_CARD = {
     "backgroundColor": COLORES["fondo_card"],
     "border"         : f"1px solid {COLORES['borde']}",
@@ -35,393 +34,363 @@ ESTILO_CARD = {
     "marginBottom"   : "16px",
 }
 
-# Estilo base para inputs
-ESTILO_INPUT = {
-    "backgroundColor": COLORES["fondo_input"],
-    "border"         : f"1px solid {COLORES['borde']}",
-    "borderRadius"   : "6px",
-    "color"          : COLORES["texto_principal"],
-    "width"          : "100%",
-}
-
 
 # ============================================================
-# HEADER
+# FRANJA DE TÍTULO — FULL WIDTH
 # ============================================================
 
 def crear_header() -> html.Div:
     """
-    Crea el header principal de la aplicación con título
-    y descripción.
+    Franja superior full width con título y subtítulo.
+    Fondo ligeramente distinto al fondo principal para dar jerarquía.
     """
     return html.Div(
         children=[
             html.Div(
                 children=[
-                    html.H1(
-                        "FinForecast",
+                    html.Span(
+                        "Fin",
                         style={
-                            "color"       : COLORES["acento_verde"],
-                            "fontFamily"  : "'Space Mono', monospace",
-                            "fontSize"    : "2rem",
-                            "fontWeight"  : "700",
-                            "marginBottom": "4px",
-                            "letterSpacing": "2px",
+                            "color"     : COLORES["acento_verde"],
+                            "fontFamily": "'Space Mono', monospace",
+                            "fontWeight": "700",
+                            "fontSize"  : "1.4rem",
                         }
                     ),
-                    html.P(
-                        "Financial Asset Price Forecasting — S&P 500 · Crypto · FX",
+                    html.Span(
+                        "Forecast",
                         style={
-                            "color"      : COLORES["texto_secundario"],
-                            "fontFamily" : "'DM Sans', sans-serif",
-                            "fontSize"   : "0.9rem",
-                            "margin"     : "0",
+                            "color"     : COLORES["texto_principal"],
+                            "fontFamily": "'Space Mono', monospace",
+                            "fontWeight": "700",
+                            "fontSize"  : "1.4rem",
+                        }
+                    ),
+                    html.Span(
+                        " — Financial Asset Forecasting",
+                        style={
+                            "color"     : COLORES["texto_secundario"],
+                            "fontFamily": "'DM Sans', sans-serif",
+                            "fontWeight": "400",
+                            "fontSize"  : "0.9rem",
+                            "marginLeft": "12px",
                         }
                     ),
                 ],
-                style={"flex": "1"}
-            ),
+                style={
+                    "maxWidth" : "1400px",
+                    "margin"   : "0 auto",
+                    "padding"  : "0 24px",
+                    "display"  : "flex",
+                    "alignItems": "center",
+                    "gap"      : "0",
+                }
+            )
         ],
         style={
             "backgroundColor": COLORES["fondo_card"],
             "borderBottom"   : f"1px solid {COLORES['borde']}",
-            "padding"        : "20px 32px",
-            "display"        : "flex",
-            "alignItems"     : "center",
-            "justifyContent" : "space-between",
+            "padding"        : "14px 0",
+            "width"          : "100%",
         }
     )
 
 
 # ============================================================
-# PANEL DE CONTROL
+# TOPBAR DE CONTROL — CARD
 # ============================================================
 
-def crear_panel_control(
+def crear_topbar(
     simbolos_sp500: list,
     simbolos_crypto: list,
     simbolos_divisas: list
 ) -> html.Div:
     """
-    Crea el panel lateral de control con todos los inputs
-    necesarios para configurar el forecast.
+    Barra de control horizontal con todos los inputs del forecast:
+    símbolo, fechas, test split, horizonte y botones RUN/RESET.
+    Se renderiza como una card con fondo oscuro.
 
     Parámetros:
-        simbolos_sp500  : lista de símbolos del S&P500
-        simbolos_crypto : lista de símbolos de crypto
+        simbolos_sp500  : lista de símbolos S&P500
+        simbolos_crypto : lista de símbolos crypto
         simbolos_divisas: lista de símbolos de divisas
     """
-    # Construir opciones agrupadas para el dropdown
+    # Construir opciones del dropdown agrupadas por categoría
     opciones = (
         [{"label": f"📈 {s}", "value": s} for s in simbolos_sp500] +
-        [{"label": f"₿ {s}", "value": s}  for s in simbolos_crypto] +
+        [{"label": f"₿ {s}",  "value": s} for s in simbolos_crypto] +
         [{"label": f"💱 {s}", "value": s} for s in simbolos_divisas]
     )
 
+    # Estilo compartido para labels de los inputs
+    estilo_label = {
+        "color"        : COLORES["texto_secundario"],
+        "fontFamily"   : "'Space Mono', monospace",
+        "fontSize"     : "0.6rem",
+        "letterSpacing": "1.5px",
+        "marginBottom" : "4px",
+        "textTransform": "uppercase",
+    }
+
     return html.Div(
         children=[
-            # Título del panel
-            html.H6(
-                "CONFIGURACIÓN",
-                style={
-                    "color"        : COLORES["texto_secundario"],
-                    "fontFamily"   : "'Space Mono', monospace",
-                    "fontSize"     : "0.7rem",
-                    "letterSpacing": "2px",
-                    "marginBottom" : "20px",
-                }
-            ),
-
-            # Selector de símbolo
-            html.Label(
-                "Símbolo",
-                style={"color": COLORES["texto_secundario"], "fontSize": "0.8rem",
-                       "fontFamily": "'DM Sans', sans-serif"}
-            ),
-            dcc.Dropdown(
-                id="input-simbolo",
-                options=opciones,
-                value="AAPL",
-                searchable=True,
-                clearable=False,
-                style={"marginBottom": "16px", **ESTILO_INPUT},
-                className="dropdown-dark"
-            ),
-
-            # Fecha inicio
-            html.Label(
-                "Fecha Inicio",
-                style={"color": COLORES["texto_secundario"], "fontSize": "0.8rem",
-                       "fontFamily": "'DM Sans', sans-serif"}
-            ),
-            dcc.DatePickerSingle(
-                id="input-fecha-inicio",
-                date=date(2019, 1, 1),
-                display_format="YYYY-MM-DD",
-                style={"marginBottom": "16px", "width": "100%"},
-                className="date-picker-dark"
-            ),
-
-            # Fecha fin
-            html.Label(
-                "Fecha Fin",
-                style={"color": COLORES["texto_secundario"], "fontSize": "0.8rem",
-                       "fontFamily": "'DM Sans', sans-serif"}
-            ),
-            dcc.DatePickerSingle(
-                id="input-fecha-fin",
-                date=date.today(),
-                display_format="YYYY-MM-DD",
-                style={"marginBottom": "16px", "width": "100%"},
-                className="date-picker-dark"
-            ),
-
-            # Slider test split
-            html.Label(
-                "Test Split",
-                style={"color": COLORES["texto_secundario"], "fontSize": "0.8rem",
-                       "fontFamily": "'DM Sans', sans-serif"}
-            ),
             html.Div(
-                id="label-meses-test",
-                style={"color": COLORES["acento_verde"], "fontSize": "0.85rem",
-                       "fontFamily": "'Space Mono', monospace", "marginBottom": "4px"}
-            ),
-            dcc.Slider(
-                id="input-meses-test",
-                min=1, max=12, step=1, value=4,
-                marks={i: {"label": str(i), "style": {"color": COLORES["texto_secundario"]}}
-                       for i in [1, 3, 6, 9, 12]},
-                tooltip={"always_visible": False},
-                className="slider-dark"
-            ),
-            html.Div(style={"marginBottom": "16px"}),
+                children=[
 
-            # Slider horizonte
-            html.Label(
-                "Horizonte de Forecast",
-                style={"color": COLORES["texto_secundario"], "fontSize": "0.8rem",
-                       "fontFamily": "'DM Sans', sans-serif"}
-            ),
-            html.Div(
-                id="label-meses-horizonte",
-                style={"color": COLORES["acento_verde"], "fontSize": "0.85rem",
-                       "fontFamily": "'Space Mono', monospace", "marginBottom": "4px"}
-            ),
-            dcc.Slider(
-                id="input-meses-horizonte",
-                min=1, max=24, step=1, value=6,
-                marks={i: {"label": str(i), "style": {"color": COLORES["texto_secundario"]}}
-                       for i in [1, 6, 12, 18, 24]},
-                tooltip={"always_visible": False},
-                className="slider-dark"
-            ),
-            html.Div(style={"marginBottom": "24px"}),
+                    # --- Símbolo ---
+                    html.Div([
+                        html.Div("Símbolo", style=estilo_label),
+                        dcc.Dropdown(
+                            id="input-simbolo",
+                            options=opciones,
+                            value="AAPL",
+                            clearable=False,
+                            searchable=True,
+                            className="dropdown-dark",
+                            style={"minWidth": "160px"},
+                        ),
+                    ], style={"flex": "2", "minWidth": "160px"}),
 
-            # Botón Run Forecast
-            html.Button(
-                "▶  RUN FORECAST",
-                id="btn-run",
-                n_clicks=0,
+                    # Separador visual
+                    html.Div(style={
+                        "width"          : "1px",
+                        "backgroundColor": COLORES["borde"],
+                        "alignSelf"      : "stretch",
+                        "margin"         : "0 4px",
+                    }),
+
+                    # --- Fecha Inicio ---
+                    html.Div([
+                        html.Div("Fecha Inicio", style=estilo_label),
+                        dcc.DatePickerSingle(
+                            id="input-fecha-inicio",
+                            date=date(2019, 1, 1),
+                            display_format="YYYY-MM-DD",
+                            className="date-picker-dark",
+                            style={"width": "100%"},
+                        ),
+                    ], style={"flex": "1.5", "minWidth": "140px"}),
+
+                    # --- Fecha Fin ---
+                    html.Div([
+                        html.Div("Fecha Fin", style=estilo_label),
+                        dcc.DatePickerSingle(
+                            id="input-fecha-fin",
+                            date=date.today(),
+                            display_format="YYYY-MM-DD",
+                            className="date-picker-dark",
+                            style={"width": "100%"},
+                        ),
+                    ], style={"flex": "1.5", "minWidth": "140px"}),
+
+                    # Separador visual
+                    html.Div(style={
+                        "width"          : "1px",
+                        "backgroundColor": COLORES["borde"],
+                        "alignSelf"      : "stretch",
+                        "margin"         : "0 4px",
+                    }),
+
+                    # --- Test Split ---
+                    html.Div([
+                        html.Div("Test Split (meses)", style=estilo_label),
+                        dcc.Input(
+                            id="input-meses-test",
+                            type="number",
+                            value=4,
+                            min=1,
+                            max=24,
+                            step=1,
+                            className="input-number-dark",
+                            style={"width": "80px"},
+                        ),
+                    ], style={"flex": "0 0 auto"}),
+
+                    # --- Horizonte ---
+                    html.Div([
+                        html.Div("Horizonte (meses)", style=estilo_label),
+                        dcc.Input(
+                            id="input-meses-horizonte",
+                            type="number",
+                            value=6,
+                            min=1,
+                            max=24,
+                            step=1,
+                            className="input-number-dark",
+                            style={"width": "80px"},
+                        ),
+                    ], style={"flex": "0 0 auto"}),
+
+                    # Separador visual
+                    html.Div(style={
+                        "width"          : "1px",
+                        "backgroundColor": COLORES["borde"],
+                        "alignSelf"      : "stretch",
+                        "margin"         : "0 4px",
+                    }),
+
+                    # --- Botones ---
+                    html.Div([
+                        html.Button(
+                            "▶ RUN FORECAST",
+                            id="btn-run",
+                            n_clicks=0,
+                            className="btn-run",
+                        ),
+                        html.Button(
+                            "↺ RESET",
+                            id="btn-reset",
+                            n_clicks=0,
+                            className="btn-reset",
+                        ),
+                    ], style={
+                        "display"      : "flex",
+                        "flexDirection": "column",
+                        "gap"          : "6px",
+                        "flex"         : "0 0 auto",
+                    }),
+
+                ],
                 style={
-                    "backgroundColor": COLORES["acento_verde"],
-                    "color"          : COLORES["fondo"],
-                    "border"         : "none",
-                    "borderRadius"   : "6px",
-                    "padding"        : "12px 0",
-                    "width"          : "100%",
-                    "fontFamily"     : "'Space Mono', monospace",
-                    "fontSize"       : "0.85rem",
-                    "fontWeight"     : "700",
-                    "letterSpacing"  : "1px",
-                    "cursor"         : "pointer",
-                    "marginBottom"   : "8px",
-                    "transition"     : "opacity 0.2s",
+                    "display"      : "flex",
+                    "alignItems"   : "flex-end",
+                    "gap"          : "16px",
+                    "flexWrap"     : "wrap",
+                    "maxWidth"     : "1400px",
+                    "margin"       : "0 auto",
+                    "width"        : "100%",
                 }
-            ),
-
-            # Botón Reset
-            html.Button(
-                "↺  RESET",
-                id="btn-reset",
-                n_clicks=0,
-                style={
-                    "backgroundColor": "transparent",
-                    "color"          : COLORES["texto_secundario"],
-                    "border"         : f"1px solid {COLORES['borde']}",
-                    "borderRadius"   : "6px",
-                    "padding"        : "10px 0",
-                    "width"          : "100%",
-                    "fontFamily"     : "'Space Mono', monospace",
-                    "fontSize"       : "0.8rem",
-                    "cursor"         : "pointer",
-                    "transition"     : "opacity 0.2s",
-                }
-            ),
+            )
         ],
         style={
             **ESTILO_CARD,
-            "position"  : "sticky",
-            "top"       : "16px",
+            "borderRadius": "8px",
+            "margin"      : "16px 24px",
         }
     )
 
 
 # ============================================================
-# CARDS DE INFORMACIÓN DEL ACTIVO
+# FRANJA DE INFO DEL ACTIVO
 # ============================================================
 
-def crear_cards_activo(info: dict) -> html.Div:
+def crear_info_activo(info: dict) -> html.Div:
     """
-    Crea las cards con información del activo seleccionado.
-    Se muestra precio, variación diaria, volumen y sector.
+    Franja horizontal con la información del activo seleccionado.
+    Sin cards individuales — todos los datos en una sola línea.
 
     Parámetros:
-        info: diccionario retornado por obtener_info_activo()
+        info: diccionario con nombre, precio, variacion, volumen,
+              moneda, sector, simbolo
+
+    Retorna:
+        Div con la franja de información
     """
-    # Color de la variación según positivo o negativo
-    color_variacion = (
-        COLORES["acento_verde"] if info["variacion"] >= 0
-        else COLORES["acento_rojo"]
-    )
-    simbolo_variacion = "▲" if info["variacion"] >= 0 else "▼"
+    if not info:
+        return html.Div()
 
-    def crear_card_metrica(titulo, valor, color=None):
-        """Card individual de métrica."""
-        return html.Div(
-            children=[
-                html.P(
-                    titulo,
-                    style={
-                        "color"        : COLORES["texto_secundario"],
-                        "fontSize"     : "0.7rem",
-                        "fontFamily"   : "'Space Mono', monospace",
-                        "letterSpacing": "1px",
-                        "margin"       : "0 0 4px 0",
-                    }
-                ),
-                html.P(
-                    valor,
-                    style={
-                        "color"     : color or COLORES["texto_principal"],
-                        "fontSize"  : "1.3rem",
-                        "fontFamily": "'Space Mono', monospace",
-                        "fontWeight": "700",
-                        "margin"    : "0",
-                    }
-                ),
-            ],
-            style={**ESTILO_CARD, "flex": "1", "minWidth": "140px", "marginRight": "12px"}
-        )
+    # Formatear precio con 2 decimales
+    precio_fmt = f"{info.get('precio', 0):,.2f} {info.get('moneda', '')}"
 
-    return html.Div(
-        children=[
-            # Nombre del activo
-            html.Div(
-                children=[
-                    html.H4(
-                        info["nombre"],
-                        style={
-                            "color"     : COLORES["texto_principal"],
-                            "fontFamily": "'DM Sans', sans-serif",
-                            "fontWeight": "600",
-                            "margin"    : "0 0 4px 0",
-                        }
-                    ),
-                    html.Span(
-                        f"{info['simbolo']} · {info['moneda']} · {info['sector']}",
-                        style={
-                            "color"    : COLORES["texto_secundario"],
-                            "fontSize" : "0.8rem",
-                            "fontFamily": "'DM Sans', sans-serif",
-                        }
-                    ),
-                ],
-                style={**ESTILO_CARD, "marginBottom": "12px"}
-            ),
+    # Formatear variación con color y signo
+    variacion = info.get("variacion", 0)
+    variacion_fmt  = f"{'▲' if variacion >= 0 else '▼'} {abs(variacion):.2f}%"
+    color_variacion = COLORES["acento_verde"] if variacion >= 0 else COLORES["acento_rojo"]
 
-            # Cards de métricas
-            html.Div(
-                children=[
-                    crear_card_metrica(
-                        "PRECIO ACTUAL",
-                        f"{info['moneda']} {info['precio']:,.4f}",
-                        COLORES["acento_azul"]
-                    ),
-                    crear_card_metrica(
-                        "VARIACIÓN DÍA",
-                        f"{simbolo_variacion} {abs(info['variacion']):.2f}%",
-                        color_variacion
-                    ),
-                    crear_card_metrica(
-                        "VOLUMEN",
-                        f"{info['volumen']:,}" if info["volumen"] else "N/A"
-                    ),
-                ],
+    # Formatear volumen abreviado
+    volumen = info.get("volumen", 0)
+    if volumen >= 1_000_000_000:
+        volumen_fmt = f"{volumen / 1_000_000_000:.1f}B"
+    elif volumen >= 1_000_000:
+        volumen_fmt = f"{volumen / 1_000_000:.1f}M"
+    elif volumen >= 1_000:
+        volumen_fmt = f"{volumen / 1_000:.1f}K"
+    else:
+        volumen_fmt = f"{volumen:,.0f}" if volumen else "—"
+
+    # Estilo de cada dato en la franja
+    def item(label, valor, color=None):
+        return html.Div([
+            html.Span(
+                label + " ",
                 style={
-                    "display"  : "flex",
-                    "flexWrap" : "wrap",
-                    "gap"      : "0",
+                    "color"        : COLORES["texto_secundario"],
+                    "fontSize"     : "0.65rem",
+                    "fontFamily"   : "'Space Mono', monospace",
+                    "letterSpacing": "1px",
+                    "textTransform": "uppercase",
                 }
             ),
-        ]
-    )
+            html.Span(
+                valor,
+                style={
+                    "color"     : color or COLORES["texto_principal"],
+                    "fontSize"  : "0.9rem",
+                    "fontFamily": "'Space Mono', monospace",
+                    "fontWeight": "700",
+                }
+            ),
+        ], style={"display": "flex", "flexDirection": "column", "gap": "2px"})
 
+    def separador():
+        return html.Div(style={
+            "width"          : "1px",
+            "height"         : "32px",
+            "backgroundColor": COLORES["borde"],
+            "alignSelf"      : "center",
+        })
 
-# ============================================================
-# SECCIÓN DE LOADING
-# ============================================================
-
-def crear_loading_spinner() -> html.Div:
-    """
-    Crea un indicador de carga que se muestra mientras
-    se ejecuta el pipeline de forecasting.
-    """
-    return dcc.Loading(
-        id="loading-forecast",
-        type="circle",
-        color=COLORES["acento_verde"],
-        children=html.Div(id="contenido-forecast")
-    )
-
-
-# ============================================================
-# PLACEHOLDER — antes de correr el forecast
-# ============================================================
-
-def crear_placeholder() -> html.Div:
-    """
-    Mensaje que se muestra en el área de resultados
-    antes de que el usuario ejecute el primer forecast.
-    """
     return html.Div(
         children=[
             html.Div(
                 children=[
-                    html.P(
-                        "▶",
-                        style={
-                            "fontSize"  : "3rem",
-                            "color"     : COLORES["acento_verde"],
-                            "margin"    : "0 0 16px 0",
-                            "fontFamily": "'Space Mono', monospace",
-                        }
-                    ),
-                    html.P(
-                        "Selecciona un activo y presiona RUN FORECAST",
-                        style={
-                            "color"     : COLORES["texto_secundario"],
-                            "fontFamily": "'DM Sans', sans-serif",
-                            "fontSize"  : "1rem",
-                            "margin"    : "0",
-                        }
-                    ),
+                    # Nombre y símbolo
+                    html.Div([
+                        html.Span(
+                            info.get("simbolo", ""),
+                            style={
+                                "color"     : COLORES["acento_verde"],
+                                "fontFamily": "'Space Mono', monospace",
+                                "fontWeight": "700",
+                                "fontSize"  : "1rem",
+                            }
+                        ),
+                        html.Span(
+                            f" · {info.get('nombre', '')}",
+                            style={
+                                "color"     : COLORES["texto_secundario"],
+                                "fontFamily": "'DM Sans', sans-serif",
+                                "fontSize"  : "0.85rem",
+                            }
+                        ),
+                    ], style={"display": "flex", "alignItems": "center", "flex": "1"}),
+
+                    separador(),
+                    item("Precio", precio_fmt),
+                    separador(),
+                    item("Var. día", variacion_fmt, color_variacion),
+                    separador(),
+                    item("Volumen", volumen_fmt),
+
+                    # Sector (si está disponible y no es N/A)
+                    *([
+                        separador(),
+                        item("Sector", info.get("sector", "")),
+                    ] if info.get("sector") and info.get("sector") != "N/A" else []),
                 ],
                 style={
-                    "textAlign": "center",
-                    "padding"  : "80px 40px",
+                    "display"    : "flex",
+                    "alignItems" : "center",
+                    "gap"        : "20px",
+                    "maxWidth"   : "1400px",
+                    "margin"     : "0 auto",
+                    "width"      : "100%",
+                    "flexWrap"   : "wrap",
                 }
             )
         ],
-        style=ESTILO_CARD
+        style={
+            **ESTILO_CARD,
+            "margin": "0 24px 16px 24px",
+        }
     )

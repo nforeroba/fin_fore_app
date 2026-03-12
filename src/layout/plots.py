@@ -15,13 +15,14 @@ from src.layout.components import COLORES
 
 # Colores asignados a cada modelo — consistentes en todos los gráficos
 COLORES_MODELOS = {
-    "AutoARIMA"   : "#58A6FF",
-    "AutoETS"     : "#F0B429",
-    "Theta"       : "#E879F9",
-    "Prophet"     : "#FB923C",
-    "ElasticNet"  : "#34D399",
-    "RandomForest": "#F87171",
-    "XGBoost"     : "#A78BFA",
+    "AutoARIMA"      : "#58A6FF",
+    "AutoETS"        : "#F0B429",
+    "Theta"          : "#E879F9",
+    "Prophet"        : "#FB923C",
+    "Prophet+XGBoost": "#FF4D8F",
+    "ElasticNet"     : "#34D399",
+    "RandomForest"   : "#F87171",
+    "XGBoost"        : "#A78BFA",
 }
 
 # Layout base compartido por todos los gráficos
@@ -54,6 +55,7 @@ LAYOUT_BASE = dict(
         font=dict(size=10, family="'Space Mono', monospace"),
         orientation ="v",
         x=1.01, y=1,
+        groupclick="toggleitem",  # Click en leyenda afecta solo ese item
     ),
     margin=dict(l=50, r=180, t=50, b=50),
     hovermode="x unified",
@@ -97,6 +99,9 @@ def grafico_validacion(
     completa y las predicciones de cada modelo sobre el test set,
     con bandas de intervalos de confianza.
 
+    El legendgroup vincula la línea y la banda CI de cada modelo
+    para que aparezcan y desaparezcan juntas al hacer clic en la leyenda.
+
     Parámetros:
         df_completo: serie histórica completa
         df_test    : datos del test set con valores reales
@@ -113,6 +118,7 @@ def grafico_validacion(
         x=df_completo["date"],
         y=df_completo["value"],
         name="ACTUAL",
+        legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
         hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
     ))
@@ -122,28 +128,31 @@ def grafico_validacion(
         df_modelo = pred_test[pred_test["modelo"] == modelo].copy()
         color = COLORES_MODELOS.get(modelo, "#FFFFFF")
 
-        # Banda de confianza — área sombreada entre lower y upper
+        # Banda de confianza — mismo legendgroup que la línea
+        # Al hacer clic en la leyenda ambas desaparecen juntas
         fig.add_trace(go.Scatter(
             x=pd.concat([df_modelo["ds"], df_modelo["ds"].iloc[::-1]]),
             y=pd.concat([df_modelo["yhat_upper"], df_modelo["yhat_lower"].iloc[::-1]]),
             fill="toself",
-            fillcolor=hex_a_rgba(color, 0.10),
+            fillcolor=hex_a_rgba(color, 0.12),
             line=dict(color="rgba(0,0,0,0)"),
+            legendgroup=modelo,
             showlegend=False,
             hoverinfo="skip",
             name=f"{modelo} CI"
         ))
 
-        # Línea de predicción
+        # Línea de predicción — es la que aparece en la leyenda
         fig.add_trace(go.Scatter(
             x=df_modelo["ds"],
             y=df_modelo["yhat"],
             name=modelo,
+            legendgroup=modelo,
             line=dict(color=color, width=1.5, dash="dot"),
             hovertemplate=f"%{{y:,.4f}}<extra>{modelo}</extra>"
         ))
 
-    # Línea vertical que marca el inicio del test set
+    # Línea vertical — inicio del test set
     fecha_inicio_test = str(df_test["date"].iloc[0])
     fig.add_shape(
         type="line",
@@ -168,7 +177,7 @@ def grafico_validacion(
             font=dict(color=COLORES["texto_principal"], size=14),
             x=0.01
         ),
-        height=420,
+        height=450,
     )
 
     return fig
@@ -189,6 +198,9 @@ def grafico_forecast(
     completa y las predicciones hacia adelante de cada modelo,
     con bandas de intervalos de confianza.
 
+    El legendgroup vincula la línea y la banda CI de cada modelo
+    para que aparezcan y desaparezcan juntas al hacer clic en la leyenda.
+
     Parámetros:
         df_completo    : serie histórica completa
         pred_forecast  : predicciones hacia adelante en formato largo
@@ -205,6 +217,7 @@ def grafico_forecast(
         x=df_completo["date"],
         y=df_completo["value"],
         name="ACTUAL",
+        legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
         hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
     ))
@@ -214,28 +227,30 @@ def grafico_forecast(
         df_modelo = pred_forecast[pred_forecast["modelo"] == modelo].copy()
         color = COLORES_MODELOS.get(modelo, "#FFFFFF")
 
-        # Banda de confianza
+        # Banda de confianza — mismo legendgroup que la línea
         fig.add_trace(go.Scatter(
             x=pd.concat([df_modelo["ds"], df_modelo["ds"].iloc[::-1]]),
             y=pd.concat([df_modelo["yhat_upper"], df_modelo["yhat_lower"].iloc[::-1]]),
             fill="toself",
-            fillcolor=hex_a_rgba(color, 0.10),
+            fillcolor=hex_a_rgba(color, 0.12),
             line=dict(color="rgba(0,0,0,0)"),
+            legendgroup=modelo,
             showlegend=False,
             hoverinfo="skip",
             name=f"{modelo} CI"
         ))
 
-        # Línea de forecast
+        # Línea de forecast — aparece en la leyenda
         fig.add_trace(go.Scatter(
             x=df_modelo["ds"],
             y=df_modelo["yhat"],
             name=modelo,
+            legendgroup=modelo,
             line=dict(color=color, width=1.5),
             hovertemplate=f"%{{y:,.4f}}<extra>{modelo}</extra>"
         ))
 
-    # Línea vertical que marca el inicio del forecast
+    # Línea vertical — inicio del forecast
     fecha_inicio_forecast = str(pred_forecast["ds"].min())
     fig.add_shape(
         type="line",
@@ -260,7 +275,7 @@ def grafico_forecast(
             font=dict(color=COLORES["texto_principal"], size=14),
             x=0.01
         ),
-        height=420,
+        height=450,
     )
 
     return fig
@@ -283,10 +298,7 @@ def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
     """
     metricas = ["MAE", "RMSE", "MAPE", "SMAPE"]
 
-    # Construir colores de celda — verde para el mejor por métrica
     colores_celdas = []
-
-    # Color de fondo por columna modelo
     col_modelo = [COLORES["fondo_input"]] * len(df_metricas)
     colores_celdas.append(col_modelo)
 

@@ -1,7 +1,6 @@
 # ============================================================
 # app.py — Entry point principal de la aplicación Dash
-# Inicializa la app, define el layout principal y registra
-# los callbacks. Este es el archivo que ejecuta el servidor.
+# Layout: franja título (full width) → topbar card → contenido
 # ============================================================
 
 import dash
@@ -15,8 +14,7 @@ from src.data.loader import (
 )
 from src.layout.components import (
     crear_header,
-    crear_panel_control,
-    crear_placeholder,
+    crear_topbar,
     COLORES
 )
 from src.callbacks.forecast import registrar_callbacks
@@ -29,33 +27,28 @@ from src.callbacks.forecast import registrar_callbacks
 app = dash.Dash(
     __name__,
     external_stylesheets=[
-        # Bootstrap para layout responsivo
         dbc.themes.CYBORG,
-        # Fuentes Google — Space Mono y DM Sans
         "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap"
     ],
     suppress_callback_exceptions=True,
     meta_tags=[
-        # Responsividad en móvil
         {"name": "viewport", "content": "width=device-width, initial-scale=1"}
     ]
 )
 
-# Título en la pestaña del navegador
 app.title = "FinForecast — Financial Asset Forecasting"
+
 
 # ============================================================
 # CARGA DE SÍMBOLOS AL INICIAR
 # ============================================================
 
-# Se cargan una sola vez al arrancar el servidor
 print("Cargando símbolos S&P500...")
 simbolos_sp500 = obtener_simbolos_sp500()
 
 print("Cargando símbolos crypto...")
 simbolos_crypto = obtener_simbolos_crypto()
 
-# Divisas — lista estática, no requiere llamada externa
 simbolos_divisas = obtener_simbolos_divisas()
 
 print(f"Símbolos cargados: {len(simbolos_sp500)} SP500 · "
@@ -69,59 +62,36 @@ print(f"Símbolos cargados: {len(simbolos_sp500)} SP500 · "
 app.layout = html.Div(
     children=[
 
-        # Header
+        # 1. Franja de título — full width
         crear_header(),
 
-        # Layout principal — sidebar + contenido
+        # 2. Topbar de control — card con padding lateral
+        crear_topbar(
+            simbolos_sp500=simbolos_sp500,
+            simbolos_crypto=simbolos_crypto,
+            simbolos_divisas=simbolos_divisas
+        ),
+
+        # 3. Área de contenido principal
         html.Div(
             children=[
 
-                # Panel lateral de control
-                html.Div(
-                    crear_panel_control(
-                        simbolos_sp500=simbolos_sp500,
-                        simbolos_crypto=simbolos_crypto,
-                        simbolos_divisas=simbolos_divisas
-                    ),
-                    className="panel-lateral",
-                    style={
-                        "width"    : "280px",
-                        "minWidth" : "280px",
-                        "padding"  : "16px",
-                    }
-                ),
+                # Franja info del activo — aparece al seleccionar símbolo
+                html.Div(id="seccion-info-activo"),
 
-                # Área de contenido principal
-                html.Div(
-                    children=[
-
-                        # Sección info del activo
-                        html.Div(
-                            id="seccion-info-activo",
-                            style={"marginBottom": "0"}
-                        ),
-
-                        # Área de resultados con loading
-                        dcc.Loading(
-                            id="loading-forecast",
-                            type="circle",
-                            color=COLORES["acento_verde"],
-                            children=html.Div(
-                                id="contenido-forecast",
-                                children=crear_placeholder()
-                            )
-                        ),
-                    ],
-                    style={
-                        "flex"    : "1",
-                        "padding" : "16px",
-                        "minWidth": "0",  # Evita overflow en flex
-                    }
+                # Resultados del forecast con spinner de carga
+                dcc.Loading(
+                    id="loading-forecast",
+                    type="circle",
+                    color=COLORES["acento_verde"],
+                    children=html.Div(id="contenido-forecast")
                 ),
             ],
             style={
-                "display"  : "flex",
-                "minHeight": "calc(100vh - 70px)",
+                "padding" : "0 24px 24px 24px",
+                "maxWidth": "1400px",
+                "margin"  : "0 auto",
+                "width"   : "100%",
             }
         ),
     ],

@@ -51,7 +51,7 @@ def entrenar_modelos_estadisticos(
     frecuencia: str = "B"
 ) -> tuple[StatsForecast, pd.DataFrame]:
     """
-    Entrena AutoARIMA, ETS y Theta sobre los datos de entrenamiento.
+    Entrena AutoARIMA (con drift), ETS y Theta sobre los datos de entrenamiento.
 
     Parámetros:
         df_train  : DataFrame con columnas 'date' y 'value' (solo train)
@@ -67,10 +67,12 @@ def entrenar_modelos_estadisticos(
     df_sf = preparar_datos_statsforecast(df_train, simbolo)
 
     # Definir los tres modelos estadísticos
+    # allowdrift=True replica el comportamiento de modeltime (R):
+    # ARIMA with drift captura tendencia lineal en series financieras alcistas
     modelos = [
-        AutoARIMA(season_length=5),        # Estacionalidad semanal (5 días hábiles)
-        AutoETS(season_length=5),              # Error, Trend, Seasonality
-        DynamicOptimizedTheta(season_length=5)  # Theta optimizado dinámicamente
+        AutoARIMA(season_length=5, allowdrift=True),
+        AutoETS(season_length=5),
+        DynamicOptimizedTheta(season_length=5)
     ]
 
     # Crear el objeto StatsForecast — n_jobs=-1 usa todos los núcleos disponibles

@@ -11,8 +11,7 @@ import plotly.graph_objects as go
 from src.data.loader import obtener_info_activo
 from src.models.orchestrator import ejecutar_pipeline
 from src.layout.components import (
-    crear_cards_activo,
-    crear_placeholder,
+    crear_info_activo,
     COLORES,
     ESTILO_CARD
 )
@@ -24,7 +23,7 @@ from src.layout.plots import (
 
 
 # ============================================================
-# CALLBACK — Labels dinámicos de los sliders
+# REGISTRO DE CALLBACKS
 # ============================================================
 
 def registrar_callbacks(app):
@@ -35,6 +34,10 @@ def registrar_callbacks(app):
     Parámetros:
         app: instancia de la aplicación Dash
     """
+
+    # ============================================================
+    # CALLBACK — Labels dinámicos de los sliders
+    # ============================================================
 
     @app.callback(
         Output("label-meses-test", "children"),
@@ -70,7 +73,7 @@ def registrar_callbacks(app):
             return html.Div()
 
         info = obtener_info_activo(simbolo)
-        return crear_cards_activo(info)
+        return crear_info_activo(info)
 
     # ============================================================
     # CALLBACK — Ejecutar forecast al presionar RUN
@@ -94,7 +97,7 @@ def registrar_callbacks(app):
         y gráfico de forecast hacia adelante.
         """
         if not n_clicks or not simbolo:
-            return crear_placeholder()
+            return html.Div()
 
         try:
             # Ejecutar pipeline completo
@@ -160,8 +163,8 @@ def registrar_callbacks(app):
                     html.P(
                         "★ Mejor modelo por métrica resaltado en verde",
                         style={
-                            "color"    : COLORES["acento_verde"],
-                            "fontSize" : "0.75rem",
+                            "color"     : COLORES["acento_verde"],
+                            "fontSize"  : "0.75rem",
                             "fontFamily": "'DM Sans', sans-serif",
                             "marginBottom": "8px",
                         }
@@ -200,17 +203,17 @@ def registrar_callbacks(app):
                 html.P(
                     "⚠ Error al ejecutar el forecast",
                     style={
-                        "color"    : COLORES["acento_rojo"],
+                        "color"     : COLORES["acento_rojo"],
                         "fontFamily": "'Space Mono', monospace",
-                        "fontSize" : "0.9rem",
+                        "fontSize"  : "0.9rem",
                     }
                 ),
                 html.Pre(
                     traceback.format_exc(),
                     style={
-                        "color"    : COLORES["texto_secundario"],
+                        "color"     : COLORES["texto_secundario"],
                         "fontFamily": "'DM Sans', sans-serif",
-                        "fontSize" : "0.75rem",
+                        "fontSize"  : "0.75rem",
                         "whiteSpace": "pre-wrap",
                     }
                 ),
@@ -237,10 +240,10 @@ def registrar_callbacks(app):
         """
         from datetime import date
         return (
-            crear_placeholder(),  # Limpiar resultados
-            "AAPL",               # Símbolo por defecto
-            date(2019, 1, 1),     # Fecha inicio por defecto
-            date.today(),         # Fecha fin por defecto
-            4,                    # Meses test por defecto
-            6,                    # Meses horizonte por defecto
+            html.Div(),       # Limpiar resultados sin placeholder
+            "AAPL",           # Símbolo por defecto
+            date(2019, 1, 1), # Fecha inicio por defecto
+            date.today(),     # Fecha fin por defecto
+            4,                # Meses test por defecto
+            6,                # Meses horizonte por defecto
         )
