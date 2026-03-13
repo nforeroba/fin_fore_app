@@ -41,6 +41,16 @@ MAX_WIDTH = "1400px"
 PADDING_H = "24px"
 GAP_V     = "16px"
 
+# Margen exterior unificado — topbar e info del activo usan el mismo
+MARGEN_SECCION = f"{GAP_V} {PADDING_H}"
+
+# Defaults por categoría de activo
+DEFAULTS_CATEGORIA = {
+    "sp500" : "AAPL",
+    "crypto": "BTC-USD",
+    "fx"    : "USDCOP=X",
+}
+
 
 # ============================================================
 # FRANJA DE TÍTULO — FULL WIDTH
@@ -90,7 +100,6 @@ def crear_header() -> html.Div:
                     "display"       : "flex",
                     "alignItems"    : "center",
                     "justifyContent": "center",
-                    "gap"           : "0",
                 }
             )
         ],
@@ -104,6 +113,93 @@ def crear_header() -> html.Div:
 
 
 # ============================================================
+# STEPPER CUSTOM — botón − | input | botón +
+# ============================================================
+
+def _crear_stepper(id_input: str, id_btn_menos: str, id_btn_mas: str,
+                   valor: int, minimo: int, maximo: int) -> html.Div:
+    """
+    Stepper custom: botón − | número | botón +
+    Reemplaza dcc.Input type=number para tener controles visibles
+    independientes del browser.
+
+    Parámetros:
+        id_input    : id del dcc.Input central
+        id_btn_menos: id del botón de decremento
+        id_btn_mas  : id del botón de incremento
+        valor       : valor inicial
+        minimo      : valor mínimo permitido
+        maximo      : valor máximo permitido
+    """
+    estilo_btn_stepper = {
+        "width"          : "28px",
+        "height"         : "36px",
+        "backgroundColor": COLORES["fondo_input"],
+        "border"         : f"1px solid {COLORES['borde']}",
+        "color"          : COLORES["texto_secundario"],
+        "fontFamily"     : "'Space Mono', monospace",
+        "fontSize"       : "1.1rem",
+        "cursor"         : "pointer",
+        "display"        : "flex",
+        "alignItems"     : "center",
+        "justifyContent" : "center",
+        "padding"        : "0",
+        "lineHeight"     : "1",
+        "flexShrink"     : "0",
+    }
+
+    return html.Div([
+        html.Button(
+            "−",
+            id=id_btn_menos,
+            n_clicks=0,
+            className="btn-stepper",
+            style={
+                **estilo_btn_stepper,
+                "borderRadius": "6px 0 0 6px",
+                "borderRight" : "none",
+            },
+        ),
+        dcc.Input(
+            id=id_input,
+            type="number",
+            value=valor,
+            min=minimo,
+            max=maximo,
+            step=1,
+            className="input-stepper",
+            style={
+                "width"          : "52px",
+                "height"         : "36px",
+                "backgroundColor": COLORES["fondo_input"],
+                "border"         : f"1px solid {COLORES['borde']}",
+                "borderLeft"     : "none",
+                "borderRight"    : "none",
+                "color"          : COLORES["texto_principal"],
+                "fontFamily"     : "'Space Mono', monospace",
+                "fontSize"       : "0.9rem",
+                "textAlign"      : "center",
+                "outline"        : "none",
+            },
+        ),
+        html.Button(
+            "+",
+            id=id_btn_mas,
+            n_clicks=0,
+            className="btn-stepper",
+            style={
+                **estilo_btn_stepper,
+                "borderRadius": "0 6px 6px 0",
+                "borderLeft"  : "none",
+            },
+        ),
+    ], style={
+        "display"   : "flex",
+        "alignItems": "center",
+    })
+
+
+# ============================================================
 # TOPBAR DE CONTROL — CARD
 # ============================================================
 
@@ -113,48 +209,18 @@ def crear_topbar(
     simbolos_divisas: list,
 ) -> html.Div:
     """
-    Barra de control horizontal con todos los inputs del forecast.
-    Dropdown de símbolo con grupos: S&P 500 / Crypto / FX.
+    Barra de control con tabs de categoría (S&P 500 / Crypto / FX),
+    dropdown filtrado por categoría, date pickers, steppers de
+    test split y horizonte, y botones de acción.
+
+    Los stores guardan las listas de símbolos para que los callbacks
+    no dependan de variables globales de app.py.
 
     Parámetros:
         simbolos_sp500  : lista de símbolos S&P500
         simbolos_crypto : lista de símbolos crypto
         simbolos_divisas: lista de símbolos de divisas
     """
-    opciones = [
-        {
-            "label": html.Span("S&P 500", style={
-                "color": "#7D8590", "fontFamily": "'Space Mono', monospace",
-                "fontSize": "0.65rem", "letterSpacing": "1px",
-            }),
-            "value": "group_sp500", "disabled": True,
-        },
-        *[{"label": s, "value": s} for s in simbolos_sp500],
-        {
-            "label": html.Span("─────────────", style={"color": "#30363D", "fontSize": "0.5rem"}),
-            "value": "sep1", "disabled": True,
-        },
-        {
-            "label": html.Span("CRYPTO", style={
-                "color": "#7D8590", "fontFamily": "'Space Mono', monospace",
-                "fontSize": "0.65rem", "letterSpacing": "1px",
-            }),
-            "value": "group_crypto", "disabled": True,
-        },
-        *[{"label": s, "value": s} for s in simbolos_crypto],
-        {
-            "label": html.Span("─────────────", style={"color": "#30363D", "fontSize": "0.5rem"}),
-            "value": "sep2", "disabled": True,
-        },
-        {
-            "label": html.Span("FX / DIVISAS", style={
-                "color": "#7D8590", "fontFamily": "'Space Mono', monospace",
-                "fontSize": "0.65rem", "letterSpacing": "1px",
-            }),
-            "value": "group_fx", "disabled": True,
-        },
-        *[{"label": s, "value": s} for s in simbolos_divisas],
-    ]
 
     estilo_label = {
         "color"        : COLORES["texto_secundario"],
@@ -173,122 +239,146 @@ def crear_topbar(
             "margin"         : "0 4px",
         })
 
+    # Tabs de categoría — botones tipo toggle
+    tabs_categoria = html.Div([
+        html.Button("S&P 500", id="tab-sp500",  n_clicks=0, className="tab-categoria tab-activo"),
+        html.Button("Crypto",  id="tab-crypto", n_clicks=0, className="tab-categoria"),
+        html.Button("FX",      id="tab-fx",     n_clicks=0, className="tab-categoria"),
+        # Store para la categoría activa
+        dcc.Store(id="store-categoria", data="sp500"),
+        # Stores con listas de símbolos — evita recalcular en callbacks
+        dcc.Store(id="store-simbolos-sp500",  data=simbolos_sp500),
+        dcc.Store(id="store-simbolos-crypto", data=simbolos_crypto),
+        dcc.Store(id="store-simbolos-fx",     data=simbolos_divisas),
+    ], style={
+        "display"     : "flex",
+        "gap"         : "4px",
+        "marginBottom": "14px",
+    })
+
+    # Dropdown — opciones iniciales = S&P 500 (categoría por defecto)
+    opciones_iniciales = [{"label": s, "value": s} for s in simbolos_sp500]
+
     return html.Div(
         children=[
             html.Div(
                 children=[
 
-                    # --- Símbolo ---
-                    html.Div([
-                        html.Div("Símbolo", style=estilo_label),
-                        dcc.Dropdown(
-                            id="input-simbolo",
-                            options=opciones,
-                            value="AAPL",
-                            clearable=False,
-                            searchable=True,
-                            className="dropdown-dark dropdown-grouped",
-                            style={"minWidth": "180px"},
-                        ),
-                    ], style={"flex": "2", "minWidth": "180px"}),
+                    # Fila de tabs
+                    html.Div(tabs_categoria, style={"width": "100%"}),
 
-                    separador_v(),
+                    # Fila de controles
+                    html.Div(
+                        children=[
 
-                    # --- Fecha Inicio ---
-                    html.Div([
-                        html.Div("Fecha Inicio", style=estilo_label),
-                        dcc.DatePickerSingle(
-                            id="input-fecha-inicio",
-                            date=date(2019, 1, 1),
-                            display_format="YYYY-MM-DD",
-                            className="date-picker-dark",
-                            style={"width": "100%"},
-                        ),
-                    ], style={"flex": "1.5", "minWidth": "140px"}),
+                            # --- Símbolo ---
+                            html.Div([
+                                html.Div("Símbolo", style=estilo_label),
+                                dcc.Dropdown(
+                                    id="input-simbolo",
+                                    options=opciones_iniciales,
+                                    value=DEFAULTS_CATEGORIA["sp500"],
+                                    clearable=False,
+                                    searchable=True,
+                                    className="dropdown-dark",
+                                    style={"minWidth": "180px"},
+                                ),
+                            ], style={"flex": "2", "minWidth": "180px"}),
 
-                    # --- Fecha Fin ---
-                    html.Div([
-                        html.Div("Fecha Fin", style=estilo_label),
-                        dcc.DatePickerSingle(
-                            id="input-fecha-fin",
-                            date=date.today(),
-                            display_format="YYYY-MM-DD",
-                            className="date-picker-dark",
-                            style={"width": "100%"},
-                        ),
-                    ], style={"flex": "1.5", "minWidth": "140px"}),
+                            separador_v(),
 
-                    separador_v(),
+                            # --- Fecha Inicio ---
+                            html.Div([
+                                html.Div("Fecha Inicio", style=estilo_label),
+                                dcc.DatePickerSingle(
+                                    id="input-fecha-inicio",
+                                    date=date(2019, 1, 1),
+                                    display_format="YYYY-MM-DD",
+                                    className="date-picker-dark",
+                                    style={"width": "100%"},
+                                ),
+                            ], style={"flex": "1.5", "minWidth": "140px"}),
 
-                    # --- Test Split ---
-                    html.Div([
-                        html.Div("Test Split (meses)", style=estilo_label),
-                        dcc.Input(
-                            id="input-meses-test",
-                            type="number",
-                            value=4,
-                            min=1,
-                            max=24,
-                            step=1,
-                            className="input-number-dark",
-                            style={"width": "80px"},
-                        ),
-                    ], style={"flex": "0 0 auto"}),
+                            # --- Fecha Fin ---
+                            html.Div([
+                                html.Div("Fecha Fin", style=estilo_label),
+                                dcc.DatePickerSingle(
+                                    id="input-fecha-fin",
+                                    date=date.today(),
+                                    display_format="YYYY-MM-DD",
+                                    className="date-picker-dark",
+                                    style={"width": "100%"},
+                                ),
+                            ], style={"flex": "1.5", "minWidth": "140px"}),
 
-                    # --- Horizonte ---
-                    html.Div([
-                        html.Div("Horizonte (meses)", style=estilo_label),
-                        dcc.Input(
-                            id="input-meses-horizonte",
-                            type="number",
-                            value=6,
-                            min=1,
-                            max=24,
-                            step=1,
-                            className="input-number-dark",
-                            style={"width": "80px"},
-                        ),
-                    ], style={"flex": "0 0 auto"}),
+                            separador_v(),
 
-                    separador_v(),
+                            # --- Test Split (stepper) ---
+                            html.Div([
+                                html.Div("Test Split (meses)", style=estilo_label),
+                                _crear_stepper(
+                                    id_input    ="input-meses-test",
+                                    id_btn_menos="btn-test-menos",
+                                    id_btn_mas  ="btn-test-mas",
+                                    valor=4, minimo=1, maximo=24,
+                                ),
+                            ], style={"flex": "0 0 auto"}),
 
-                    # --- Botones ---
-                    html.Div([
-                        html.Button(
-                            "▶ RUN FORECAST",
-                            id="btn-run",
-                            n_clicks=0,
-                            className="btn-run",
-                        ),
-                        html.Button(
-                            "↺ RESET",
-                            id="btn-reset",
-                            n_clicks=0,
-                            className="btn-reset",
-                        ),
-                    ], style={
-                        "display"      : "flex",
-                        "flexDirection": "column",
-                        "gap"          : "6px",
-                        "flex"         : "0 0 auto",
-                    }),
+                            # --- Horizonte (stepper) ---
+                            html.Div([
+                                html.Div("Horizonte (meses)", style=estilo_label),
+                                _crear_stepper(
+                                    id_input    ="input-meses-horizonte",
+                                    id_btn_menos="btn-horizonte-menos",
+                                    id_btn_mas  ="btn-horizonte-mas",
+                                    valor=6, minimo=1, maximo=24,
+                                ),
+                            ], style={"flex": "0 0 auto"}),
 
+                            separador_v(),
+
+                            # --- Botones ---
+                            html.Div([
+                                html.Button(
+                                    "▶ RUN FORECAST",
+                                    id="btn-run",
+                                    n_clicks=0,
+                                    className="btn-run",
+                                ),
+                                html.Button(
+                                    "↺ RESET",
+                                    id="btn-reset",
+                                    n_clicks=0,
+                                    className="btn-reset",
+                                ),
+                            ], style={
+                                "display"      : "flex",
+                                "flexDirection": "column",
+                                "gap"          : "6px",
+                                "flex"         : "0 0 auto",
+                            }),
+
+                        ],
+                        className="topbar-controles",
+                        style={
+                            "display"   : "flex",
+                            "alignItems": "flex-end",
+                            "gap"       : "16px",
+                            "flexWrap"  : "wrap",
+                            "width"     : "100%",
+                        }
+                    ),
                 ],
                 style={
-                    "display"   : "flex",
-                    "alignItems": "flex-end",
-                    "gap"       : "16px",
-                    "flexWrap"  : "wrap",
-                    "maxWidth"  : MAX_WIDTH,
-                    "margin"    : "0 auto",
-                    "width"     : "100%",
+                    "width": "fit-content",
                 }
             )
         ],
         style={
             **ESTILO_CARD,
             "borderRadius": "8px",
-            "margin"      : f"{GAP_V} {PADDING_H}",
+            "margin"      : f"{GAP_V} auto",
+            "width"       : "fit-content",
         }
     )
 
@@ -396,7 +486,6 @@ def crear_info_activo(info: dict) -> html.Div:
 
     industria = info.get("industria", "") or ""
     sector    = info.get("sector", "")    or ""
-    # Mostrar industria si existe, sector como fallback
     etiqueta_sector = industria if industria and industria != "N/A" else sector
 
     return html.Div(
@@ -432,13 +521,12 @@ def crear_info_activo(info: dict) -> html.Div:
                     sep(),
                     item("Volumen",   volumen_fmt),
 
-                    # Campos opcionales — solo se muestran si tienen valor
-                    *opcional("Mkt Cap",   market_cap_fmt, market_cap > 0),
-                    *opcional("P/E",       pe_fmt,         pe_ratio is not None),
-                    *opcional("Beta",      beta_fmt,       beta is not None),
-                    *opcional("52w",       rango_fmt,      s52_max and s52_min),
-                    *opcional("Div. yield",dividendo_fmt,  dividendo is not None),
-                    *opcional("Sector",    etiqueta_sector,
+                    *opcional("Mkt Cap",    market_cap_fmt, market_cap > 0),
+                    *opcional("P/E",        pe_fmt,         pe_ratio is not None),
+                    *opcional("Beta",       beta_fmt,       beta is not None),
+                    *opcional("52w",        rango_fmt,      s52_max and s52_min),
+                    *opcional("Div. yield", dividendo_fmt,  dividendo is not None),
+                    *opcional("Sector",     etiqueta_sector,
                                bool(etiqueta_sector and etiqueta_sector != "N/A")),
 
                 ],
@@ -455,6 +543,6 @@ def crear_info_activo(info: dict) -> html.Div:
         ],
         style={
             **ESTILO_CARD,
-            "margin": f"0 {PADDING_H} {GAP_V} {PADDING_H}",
+            "margin": MARGEN_SECCION,
         }
     )

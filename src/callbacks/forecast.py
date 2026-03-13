@@ -1,24 +1,24 @@
 # ============================================================
 # forecast.py — Callbacks de Dash para la interactividad
-# Maneja los eventos de usuario: selección de símbolo,
-# ejecución del forecast y reset de la aplicación.
+# Maneja los eventos de usuario: tabs de categoría, selección
+# de símbolo, steppers, ejecución del forecast y reset.
 # ============================================================
 
-from dash import Input, Output, State, callback, html, dcc
+from dash import Input, Output, State, html, dcc, no_update
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 
 from src.data.loader import obtener_info_activo
 from src.models.orchestrator import ejecutar_pipeline
 from src.layout.components import (
     crear_info_activo,
     COLORES,
-    ESTILO_CARD
+    ESTILO_CARD,
+    DEFAULTS_CATEGORIA,
 )
 from src.layout.plots import (
     grafico_validacion,
     grafico_forecast,
-    crear_tabla_metricas
+    crear_tabla_metricas,
 )
 
 
@@ -36,24 +36,117 @@ def registrar_callbacks(app):
     """
 
     # ============================================================
-    # CALLBACK — Labels dinámicos de los sliders
+    # CALLBACK — Tabs de categoría
+    # Actualiza el store de categoría activa, las clases CSS de los
+    # tabs, las opciones del dropdown y el valor por defecto.
     # ============================================================
 
     @app.callback(
-        Output("label-meses-test", "children"),
-        Input("input-meses-test", "value")
+        Output("store-categoria",   "data"),
+        Output("tab-sp500",         "className"),
+        Output("tab-crypto",        "className"),
+        Output("tab-fx",            "className"),
+        Output("input-simbolo",     "options"),
+        Output("input-simbolo",     "value"),
+        Input("tab-sp500",          "n_clicks"),
+        Input("tab-crypto",         "n_clicks"),
+        Input("tab-fx",             "n_clicks"),
+        State("store-simbolos-sp500",  "data"),
+        State("store-simbolos-crypto", "data"),
+        State("store-simbolos-fx",     "data"),
+        State("store-categoria",       "data"),
+        prevent_initial_call=True,
     )
-    def actualizar_label_test(meses):
-        """Muestra el valor actual del slider de test split."""
-        return f"{meses} {'mes' if meses == 1 else 'meses'}"
+    def cambiar_categoria(n_sp500, n_crypto, n_fx,
+                          simbolos_sp500, simbolos_crypto, simbolos_fx,
+                          categoria_actual):
+        """
+        Al hacer click en un tab:
+        - Actualiza el store de categoría
+        - Marca el tab activo con clase CSS tab-activo
+        - Carga las opciones del dropdown correspondientes
+        - Resetea el dropdown al símbolo por defecto de esa categoría
+        """
+        from dash import ctx
+
+        trigger = ctx.triggered_id
+        if not trigger:
+            return no_update, no_update, no_update, no_update, no_update, no_update
+
+        BASE   = "tab-categoria"
+        ACTIVO = "tab-categoria tab-activo"
+
+        if trigger == "tab-sp500":
+            opciones  = [{"label": s, "value": s} for s in (simbolos_sp500 or [])]
+            return (
+                "sp500",
+                ACTIVO, BASE, BASE,
+                opciones,
+                DEFAULTS_CATEGORIA["sp500"],
+            )
+        elif trigger == "tab-crypto":
+            opciones  = [{"label": s, "value": s} for s in (simbolos_crypto or [])]
+            return (
+                "crypto",
+                BASE, ACTIVO, BASE,
+                opciones,
+                DEFAULTS_CATEGORIA["crypto"],
+            )
+        elif trigger == "tab-fx":
+            opciones  = [{"label": s, "value": s} for s in (simbolos_fx or [])]
+            return (
+                "fx",
+                BASE, BASE, ACTIVO,
+                opciones,
+                DEFAULTS_CATEGORIA["fx"],
+            )
+
+        return no_update, no_update, no_update, no_update, no_update, no_update
+
+
+    # ============================================================
+    # CALLBACK — Stepper Test Split
+    # ============================================================
 
     @app.callback(
-        Output("label-meses-horizonte", "children"),
-        Input("input-meses-horizonte", "value")
+        Output("input-meses-test", "value"),
+        Input("btn-test-menos",    "n_clicks"),
+        Input("btn-test-mas",      "n_clicks"),
+        State("input-meses-test",  "value"),
+        prevent_initial_call=True,
     )
-    def actualizar_label_horizonte(meses):
-        """Muestra el valor actual del slider de horizonte."""
-        return f"{meses} {'mes' if meses == 1 else 'meses'}"
+    def stepper_test(n_menos, n_mas, valor_actual):
+        """Decrementa o incrementa el valor de test split (1–24)."""
+        from dash import ctx
+        valor = int(valor_actual or 4)
+        if ctx.triggered_id == "btn-test-menos":
+            return max(1, valor - 1)
+        if ctx.triggered_id == "btn-test-mas":
+            return min(24, valor + 1)
+        return valor
+
+
+    # ============================================================
+    # CALLBACK — Stepper Horizonte
+    # ============================================================
+
+    @app.callback(
+        Output("input-meses-horizonte", "value"),
+        Input("btn-horizonte-menos",    "n_clicks"),
+        Input("btn-horizonte-mas",      "n_clicks"),
+        State("input-meses-horizonte",  "value"),
+        prevent_initial_call=True,
+    )
+    def stepper_horizonte(n_menos, n_mas, valor_actual):
+        """Decrementa o incrementa el valor de horizonte (1–24)."""
+        from dash import ctx
+        valor = int(valor_actual or 6)
+        if ctx.triggered_id == "btn-horizonte-menos":
+            return max(1, valor - 1)
+        if ctx.triggered_id == "btn-horizonte-mas":
+            return min(24, valor + 1)
+        return valor
+
 
     # ============================================================
     # CALLBACK — Info del activo al seleccionar símbolo
@@ -62,7 +155,7 @@ def registrar_callbacks(app):
     @app.callback(
         Output("seccion-info-activo", "children"),
         Input("input-simbolo", "value"),
-        prevent_initial_call=False
+        prevent_initial_call=False,
     )
     def actualizar_info_activo(simbolo):
         """
@@ -71,9 +164,9 @@ def registrar_callbacks(app):
         """
         if not simbolo:
             return html.Div()
-
         info = obtener_info_activo(simbolo)
         return crear_info_activo(info)
+
 
     # ============================================================
     # CALLBACK — Ejecutar forecast al presionar RUN
@@ -82,97 +175,88 @@ def registrar_callbacks(app):
     @app.callback(
         Output("contenido-forecast", "children"),
         Input("btn-run", "n_clicks"),
-        State("input-simbolo", "value"),
-        State("input-fecha-inicio", "date"),
-        State("input-fecha-fin", "date"),
-        State("input-meses-test", "value"),
-        State("input-meses-horizonte", "value"),
-        prevent_initial_call=True
+        State("input-simbolo",        "value"),
+        State("input-fecha-inicio",   "date"),
+        State("input-fecha-fin",      "date"),
+        State("input-meses-test",     "value"),
+        State("input-meses-horizonte","value"),
+        prevent_initial_call=True,
     )
     def ejecutar_forecast(n_clicks, simbolo, fecha_inicio, fecha_fin,
                           meses_test, meses_horizonte):
         """
         Ejecuta el pipeline completo de forecasting y renderiza
-        los resultados — gráfico de validación, tabla de métricas
-        y gráfico de forecast hacia adelante.
+        los resultados: validación, métricas y forecast.
         """
         if not n_clicks or not simbolo:
             return html.Div()
 
         try:
-            # Ejecutar pipeline completo
             resultados = ejecutar_pipeline(
                 simbolo         = simbolo,
                 fecha_inicio    = str(fecha_inicio),
                 fecha_fin       = str(fecha_fin),
-                meses_test      = meses_test,
-                meses_horizonte = meses_horizonte
+                meses_test      = int(meses_test or 4),
+                meses_horizonte = int(meses_horizonte or 6),
             )
 
-            # Generar gráficos
             fig_validacion = grafico_validacion(
                 df_completo = resultados["df_completo"],
                 df_test     = resultados["df_test"],
                 pred_test   = resultados["pred_test"],
-                simbolo     = simbolo
+                simbolo     = simbolo,
             )
-
             fig_forecast = grafico_forecast(
                 df_completo     = resultados["df_completo"],
                 pred_forecast   = resultados["pred_forecast"],
                 simbolo         = simbolo,
-                meses_horizonte = meses_horizonte
+                meses_horizonte = int(meses_horizonte or 6),
             )
-
             fig_metricas = crear_tabla_metricas(resultados["metricas"])
 
-            # Construir sección de resultados
+            estilo_titulo = {
+                "color"        : COLORES["texto_secundario"],
+                "fontFamily"   : "'Space Mono', monospace",
+                "fontSize"     : "0.7rem",
+                "letterSpacing": "2px",
+                "marginBottom" : "12px",
+            }
+
             return html.Div([
 
                 # Gráfico de validación
                 html.Div([
-                    html.H6(
-                        "VALIDACIÓN DE MODELOS",
-                        style={
-                            "color"        : COLORES["texto_secundario"],
-                            "fontFamily"   : "'Space Mono', monospace",
-                            "fontSize"     : "0.7rem",
-                            "letterSpacing": "2px",
-                            "marginBottom" : "12px",
-                        }
-                    ),
+                    html.H6("VALIDACIÓN DE MODELOS", style=estilo_titulo),
                     dcc.Graph(
                         figure=fig_validacion,
-                        config={"displayModeBar": True, "responsive": True, "modeBarButtonsToAdd": ["hoverClosestCartesian", "hoverCompareCartesian"]},
-                        style={"width": "100%"}
+                        config={
+                            "displayModeBar": True,
+                            "responsive"    : True,
+                            "modeBarButtonsToAdd": [
+                                "hoverClosestCartesian",
+                                "hoverCompareCartesian",
+                            ],
+                        },
+                        style={"width": "100%"},
                     ),
                 ], style=ESTILO_CARD),
 
                 # Tabla de métricas
                 html.Div([
-                    html.H6(
-                        "MÉTRICAS DE ACCURACY — TEST SET",
-                        style={
-                            "color"        : COLORES["texto_secundario"],
-                            "fontFamily"   : "'Space Mono', monospace",
-                            "fontSize"     : "0.7rem",
-                            "letterSpacing": "2px",
-                            "marginBottom" : "12px",
-                        }
-                    ),
+                    html.H6("MÉTRICAS DE ACCURACY — TEST SET", style=estilo_titulo),
                     html.P(
                         "★ Mejor modelo por métrica resaltado en verde",
                         style={
-                            "color"     : COLORES["acento_verde"],
-                            "fontSize"  : "0.75rem",
-                            "fontFamily": "'DM Sans', sans-serif",
+                            "color"       : COLORES["acento_verde"],
+                            "fontSize"    : "0.75rem",
+                            "fontFamily"  : "'DM Sans', sans-serif",
                             "marginBottom": "8px",
                         }
                     ),
                     dcc.Graph(
                         figure=fig_metricas,
                         config={"displayModeBar": False},
-                        style={"width": "100%"}
+                        style={"width": "100%"},
                     ),
                 ], style=ESTILO_CARD),
 
@@ -180,24 +264,25 @@ def registrar_callbacks(app):
                 html.Div([
                     html.H6(
                         f"FORECAST — {meses_horizonte} MESES",
-                        style={
-                            "color"        : COLORES["texto_secundario"],
-                            "fontFamily"   : "'Space Mono', monospace",
-                            "fontSize"     : "0.7rem",
-                            "letterSpacing": "2px",
-                            "marginBottom" : "12px",
-                        }
+                        style=estilo_titulo,
                     ),
                     dcc.Graph(
                         figure=fig_forecast,
-                        config={"displayModeBar": True, "responsive": True, "modeBarButtonsToAdd": ["hoverClosestCartesian", "hoverCompareCartesian"]},
-                        style={"width": "100%"}
+                        config={
+                            "displayModeBar": True,
+                            "responsive"    : True,
+                            "modeBarButtonsToAdd": [
+                                "hoverClosestCartesian",
+                                "hoverCompareCartesian",
+                            ],
+                        },
+                        style={"width": "100%"},
                     ),
                 ], style=ESTILO_CARD),
 
             ])
 
-        except Exception as e:
+        except Exception:
             import traceback
             return html.Div([
                 html.P(
@@ -219,31 +304,49 @@ def registrar_callbacks(app):
                 ),
             ], style=ESTILO_CARD)
 
+
     # ============================================================
     # CALLBACK — Reset de la aplicación
     # ============================================================
 
     @app.callback(
-        Output("contenido-forecast", "children", allow_duplicate=True),
-        Output("input-simbolo", "value"),
-        Output("input-fecha-inicio", "date"),
-        Output("input-fecha-fin", "date"),
-        Output("input-meses-test", "value"),
-        Output("input-meses-horizonte", "value"),
+        Output("contenido-forecast",    "children",  allow_duplicate=True),
+        Output("tab-sp500",             "className", allow_duplicate=True),
+        Output("tab-crypto",            "className", allow_duplicate=True),
+        Output("tab-fx",                "className", allow_duplicate=True),
+        Output("store-categoria",       "data",      allow_duplicate=True),
+        Output("input-simbolo",         "options",   allow_duplicate=True),
+        Output("input-simbolo",         "value",     allow_duplicate=True),
+        Output("input-fecha-inicio",    "date"),
+        Output("input-fecha-fin",       "date"),
+        Output("input-meses-test",      "value",     allow_duplicate=True),
+        Output("input-meses-horizonte", "value",     allow_duplicate=True),
         Input("btn-reset", "n_clicks"),
-        prevent_initial_call=True
+        State("store-simbolos-sp500", "data"),
+        prevent_initial_call=True,
     )
-    def resetear_app(n_clicks):
+    def resetear_app(n_clicks, simbolos_sp500):
         """
-        Resetea todos los inputs a sus valores por defecto
-        y limpia el área de resultados.
+        Resetea todos los inputs a sus valores por defecto:
+        - Tab activo → S&P 500
+        - Símbolo → AAPL
+        - Fechas → 2019-01-01 a hoy
+        - Test split → 4, Horizonte → 6
+        - Limpia el área de resultados
         """
         from datetime import date
+        BASE   = "tab-categoria"
+        ACTIVO = "tab-categoria tab-activo"
+        opciones_sp500 = [{"label": s, "value": s} for s in (simbolos_sp500 or [])]
+
         return (
-            html.Div(),       # Limpiar resultados sin placeholder
-            "AAPL",           # Símbolo por defecto
-            date(2019, 1, 1), # Fecha inicio por defecto
-            date.today(),     # Fecha fin por defecto
-            4,                # Meses test por defecto
-            6,                # Meses horizonte por defecto
+            html.Div(),                      # Limpiar resultados
+            ACTIVO, BASE, BASE,              # Tabs: S&P 500 activo
+            "sp500",                         # Store categoría
+            opciones_sp500,                  # Opciones dropdown
+            DEFAULTS_CATEGORIA["sp500"],     # Símbolo: AAPL
+            date(2019, 1, 1),               # Fecha inicio
+            date.today(),                    # Fecha fin
+            4,                               # Meses test
+            6,                               # Meses horizonte
         )

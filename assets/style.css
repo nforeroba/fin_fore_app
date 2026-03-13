@@ -21,300 +21,456 @@ body {
 }
 
 /* ============================================================
-   DROPDOWN — Tema oscuro
-   Dash usa react-select internamente. Se cubren ambas generaciones
-   de clases: legacy (Select-*) y moderna (dash-dropdown / css-*).
+   DROPDOWN — Tema oscuro (Dash 2.18 — clases reales)
+   Las clases Select-* son código muerto en Dash 2.18.
+   Clases reales: dash-dropdown-*, dash-options-list-*
+   Reglas globales para el menú montado via portal.
    ============================================================ */
 
-/* Contenedor raíz */
-.dropdown-dark,
-.dropdown-dark .Select,
-.dropdown-dark .Select.is-focused,
-.dropdown-dark .Select.is-open,
-.dropdown-dark .Select--single {
-    background-color: #1C2128 !important;
-    border-color: #30363D !important;
-}
-
-/* Control visible (caja con el valor y la flecha) */
-.dropdown-dark .Select-control {
+/* Control visible — caja cerrada */
+.dropdown-dark {
     background-color: #1C2128 !important;
     border: 1px solid #30363D !important;
     border-radius: 6px !important;
     min-height: 36px !important;
-    cursor: pointer;
+    cursor: pointer !important;
     color: #E6EDF3 !important;
+    transition: border-color 0.15s ease !important;
 }
 
-.dropdown-dark .Select-control:hover,
-.dropdown-dark .Select.is-focused .Select-control,
-.dropdown-dark .Select.is-open   .Select-control {
+.dropdown-dark:hover {
     border-color: #00C896 !important;
-    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
-    background-color: #1C2128 !important;
 }
 
-/* Texto del valor seleccionado y placeholder */
-.dropdown-dark .Select-value-label,
-.dropdown-dark .Select-placeholder,
-.dropdown-dark .Select-value {
+/* Valor seleccionado */
+.dash-dropdown-value,
+.dash-dropdown-value-item,
+.dash-dropdown-value span {
     color: #E6EDF3 !important;
     font-family: 'DM Sans', sans-serif !important;
     font-size: 0.875rem !important;
     background-color: transparent !important;
 }
 
-/* Input de búsqueda dentro del control */
-.dropdown-dark input,
-.dropdown-dark .Select-input input,
-.dropdown-dark .Select-input > input {
-    color: #E6EDF3 !important;
-    background-color: transparent !important;
-    font-family: 'DM Sans', sans-serif !important;
-    caret-color: #00C896 !important;
+/* Ícono flecha/trigger */
+.dash-dropdown-trigger-icon {
+    color: #7D8590 !important;
 }
 
-/* Contenedor del input — también puede heredar fondo blanco */
-.dropdown-dark .Select-input {
-    background-color: transparent !important;
-}
-
-/* Menú desplegable — capa exterior */
-.dropdown-dark .Select-menu-outer {
+/* ── Menú desplegado + contenedor búsqueda ──
+   El wrapper directo del SVG + input de búsqueda no tiene clase conocida.
+   :has() selecciona el padre por su contenido — funciona en Chrome 105+/Firefox 121+. */
+.dash-dropdown-content,
+.dash-dropdown-options,
+.dash-options-list,
+.dash-dropdown-grid-container,
+.dash-dropdown-search-container {
     background-color: #1C2128 !important;
+}
+
+.dash-dropdown-options,
+.dash-options-list {
     border: 1px solid #30363D !important;
     border-radius: 6px !important;
     z-index: 9999 !important;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
     margin-top: 2px !important;
+    overflow: hidden !important;
 }
 
-/* Menú interior */
-.dropdown-dark .Select-menu {
-    background-color: #1C2128 !important;
-    border-radius: 6px !important;
-}
-
-/* Opciones individuales — clase legacy */
-.dropdown-dark .VirtualizedSelectOption,
-.dropdown-dark .Select-option {
+/* Opciones individuales */
+.dash-options-list-option,
+.dash-dropdown-option {
     background-color: #1C2128 !important;
     color: #E6EDF3 !important;
     font-family: 'DM Sans', sans-serif !important;
     font-size: 0.875rem !important;
-    padding: 8px 12px !important;
+    padding: 6px 12px !important;
+    cursor: pointer !important;
 }
 
-/* Opción con foco / hover */
-.dropdown-dark .VirtualizedSelectFocusedOption,
-.dropdown-dark .Select-option.is-focused,
-.dropdown-dark .Select-option:hover {
-    background-color: rgba(0, 200, 150, 0.15) !important;
+.dash-options-list-option:hover {
+    background-color: rgba(0, 200, 150, 0.12) !important;
     color: #00C896 !important;
 }
 
-/* Opción seleccionada */
-.dropdown-dark .Select-option.is-selected {
+.dash-options-list-option.selected {
     background-color: rgba(0, 200, 150, 0.2) !important;
     color: #00C896 !important;
     font-weight: 600 !important;
 }
 
-/* Flecha del dropdown */
-.dropdown-dark .Select-arrow {
-    border-top-color: #7D8590 !important;
+/* Input de búsqueda — "input.clase" gana a ".clase" de Bootstrap */
+input.dash-dropdown-search,
+.dash-dropdown-search {
+    background-color: #0D1117 !important;
+    background: #0D1117 !important;
+    color: #E6EDF3 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 4px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.875rem !important;
+    caret-color: #00C896 !important;
+    width: 100% !important;
 }
 
-.dropdown-dark .Select-arrow-zone:hover .Select-arrow,
-.dropdown-dark .Select.is-open .Select-arrow {
-    border-top-color: #00C896 !important;
-}
-
-/* Botón de limpiar */
-.dropdown-dark .Select-clear,
-.dropdown-dark .Select-clear-zone {
+input.dash-dropdown-search::placeholder,
+.dash-dropdown-search::placeholder {
     color: #7D8590 !important;
 }
 
-.dropdown-dark .Select-clear:hover {
-    color: #FF6B6B !important;
+input.dash-dropdown-search:focus,
+.dash-dropdown-search:focus {
+    outline: none !important;
+    border-color: #00C896 !important;
+    box-shadow: none !important;
+    background-color: #0D1117 !important;
+    background: #0D1117 !important;
 }
 
-/* Eliminar el borde blanco que Bootstrap/Cyborg inyecta */
+/* Ícono lupa */
+.dash-dropdown-search-icon {
+    color: #7D8590 !important;
+}
+
+/* Eliminar outline Bootstrap/Cyborg */
 .dropdown-dark *:focus {
     outline: none !important;
     box-shadow: none !important;
 }
 
 /* ============================================================
-   DATE PICKER — Tema oscuro y z-index correcto
-   El DateInput_input hereda background:white de Bootstrap.
-   Se necesita alta especificidad para ganarle.
+   DATE PICKER — Tema oscuro (Dash 2.18 — clases reales)
+   Sistema nuevo: dash-datepicker-* reemplaza a SingleDatePickerInput/*
+   El popup del calendario sigue montándose via Radix portal.
    ============================================================ */
 
-.date-picker-dark .DateInput,
-.date-picker-dark .SingleDatePickerInput,
-.date-picker-dark .SingleDatePickerInput__withBorder {
+/* Wrapper exterior de Dash — el que causa las esquinas blancas */
+.dash-datepicker {
+    background-color: transparent !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+}
+
+/* Wrapper del input — ya tiene date-picker-dark */
+.dash-datepicker-input-wrapper {
     background-color: #1C2128 !important;
     border: 1px solid #30363D !important;
     border-radius: 6px !important;
+    overflow: hidden !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    min-height: 36px !important;
+    cursor: pointer !important;
+    transition: border-color 0.15s ease !important;
 }
 
-/* Input de texto — máxima especificidad para ganarle a Bootstrap */
-.date-picker-dark .DateInput .DateInput_input,
-.date-picker-dark .DateInput_input,
-.date-picker-dark input[type="text"] {
-    background-color: #1C2128 !important;
-    background: #1C2128 !important;
-    color: #E6EDF3 !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.8rem !important;
-    border: none !important;
-    padding: 6px 10px !important;
-    border-radius: 6px !important;
-    width: 100% !important;
-    -webkit-text-fill-color: #E6EDF3 !important;   /* Safari / autofill */
-}
-
-.date-picker-dark .DateInput_input:focus,
-.date-picker-dark .DateInput_input__focused {
-    outline: none !important;
-    border-bottom: 2px solid #00C896 !important;
-    background-color: #1C2128 !important;
-    color: #E6EDF3 !important;
-}
-
-/* Placeholder del datepicker */
-.date-picker-dark .DateInput_input::placeholder {
-    color: #7D8590 !important;
-}
-
-/* Calendario popup */
-.date-picker-dark .SingleDatePicker,
-.date-picker-dark .SingleDatePicker_picker {
-    z-index: 9999 !important;
-}
-
-.date-picker-dark .SingleDatePicker_picker,
-.DayPicker,
-.DayPicker__withBorder {
-    background-color: #161B22 !important;
-    border: 1px solid #30363D !important;
-    border-radius: 8px !important;
-    z-index: 9999 !important;
-}
-
-/* Días del calendario */
-.CalendarDay__default {
-    background-color: #161B22 !important;
-    color: #E6EDF3 !important;
-    border-color: #30363D !important;
-}
-
-.CalendarDay__default:hover {
-    background-color: #00C896 !important;
-    color: #0D1117 !important;
-}
-
-.CalendarDay__selected {
-    background-color: #00C896 !important;
-    color: #0D1117 !important;
-    border-color: #00C896 !important;
-}
-
-.CalendarDay__selected:hover {
-    background-color: #00A87E !important;
-}
-
-/* Header del calendario */
-.DayPickerNavigation_button {
-    background-color: #1C2128 !important;
-    border-color: #30363D !important;
-    color: #E6EDF3 !important;
-}
-
-.DayPickerNavigation_svg__horizontal {
-    fill: #E6EDF3 !important;
-}
-
-.CalendarMonth_caption {
-    color: #E6EDF3 !important;
-    font-family: 'DM Sans', sans-serif !important;
-}
-
-.DayOfWeek {
-    color: #7D8590 !important;
-}
-
-.CalendarDay__outside {
-    color: #30363D !important;
-}
-
-/* Fix del polígono negro (fang) entre el input y el calendario */
-.DateInput_fang,
-.DateInput_fangShape {
-    fill: #161B22 !important;
-    stroke: #30363D !important;
-}
-
-.DateInput_fangStroke {
-    stroke: #30363D !important;
-    fill: transparent !important;
-}
-
-/* ============================================================
-   INPUT NUMBER — Tema oscuro con flechitas visibles
-   filter:invert(1) no funciona en todos los browsers.
-   La solución robusta es usar appearance:auto y colorear
-   el fondo del spinner area explícitamente en Chromium,
-   y para Firefox usar -moz-appearance:number-input.
-   ============================================================ */
-
-/* El dcc.Input de Dash genera un <div> wrapper + <input> adentro.
-   Seleccionamos ambos niveles para garantizar cobertura. */
-
-.input-number-dark,
-.input-number-dark input,
-div.input-number-dark input[type="number"] {
-    background-color: #1C2128 !important;
-    border: 1px solid #30363D !important;
-    border-radius: 6px !important;
-    color: #E6EDF3 !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.9rem !important;
-    padding: 6px 8px !important;
-    height: 36px !important;
-    text-align: center !important;
-    /* Mantener apariencia nativa para que las flechitas aparezcan */
-    -moz-appearance: number-input !important;
-    appearance: auto !important;
-    -webkit-appearance: auto !important;
-}
-
-.input-number-dark:focus,
-.input-number-dark input:focus {
-    outline: none !important;
+.dash-datepicker-input-wrapper:hover,
+.dash-datepicker-input-wrapper[data-state="open"] {
     border-color: #00C896 !important;
     box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
 }
 
-.input-number-dark:hover,
-.input-number-dark input:hover {
+/* Div interno inline-block que envuelve el input */
+.dash-datepicker-input-wrapper > div {
+    background-color: #1C2128 !important;
+}
+    background-color: #1C2128 !important;
+    background: #1C2128 !important;
+    border: none !important;
+    outline: none !important;
+    color: #E6EDF3 !important;
+    -webkit-text-fill-color: #E6EDF3 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.8rem !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    caret-color: #00C896 !important;
+}
+
+input.dash-datepicker-input::placeholder {
+    color: #7D8590 !important;
+}
+
+input.dash-datepicker-input:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    background-color: #1C2128 !important;
+    color: #E6EDF3 !important;
+    -webkit-text-fill-color: #E6EDF3 !important;
+}
+
+/* Ícono flecha (caret) */
+.dash-datepicker-caret-icon {
+    color: #7D8590 !important;
+    flex-shrink: 0 !important;
+}
+
+.dash-datepicker-input-wrapper:hover .dash-datepicker-caret-icon,
+.dash-datepicker-input-wrapper[data-state="open"] .dash-datepicker-caret-icon {
+    color: #00C896 !important;
+}
+
+/* ── Popup del calendario — GLOBAL (Radix portal) ── */
+
+/* Contenedor principal del popup */
+.dash-datepicker-content {
+    background-color: #161B22 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 8px !important;
+    z-index: 9999 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    padding: 12px !important;
+}
+
+/* Wrapper del calendario */
+.dash-datepicker-calendar-wrapper {
+    background-color: #161B22 !important;
+}
+
+/* ── Controles de navegación (fila superior) ── */
+.dash-datepicker-controls {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 10px !important;
+    background-color: #161B22 !important;
+}
+
+/* Botones < > de mes */
+button.dash-datepicker-month-nav {
+    background-color: #1C2128 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 4px !important;
+    color: #E6EDF3 !important;
+    cursor: pointer !important;
+    padding: 4px 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: border-color 0.15s !important;
+}
+
+button.dash-datepicker-month-nav:hover {
+    border-color: #00C896 !important;
+    color: #00C896 !important;
+}
+
+/* Sizers ocultos del mes (aria-hidden) */
+.dash-datepicker-month-sizer {
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Dropdown de mes — hereda estilos de .dropdown-dark */
+.dash-dropdown-wrapper {
+    background-color: #161B22 !important;
+}
+
+.dash-dropdown-wrapper button.dash-dropdown {
+    background-color: #1C2128 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 4px !important;
+    color: #E6EDF3 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.8rem !important;
+    cursor: pointer !important;
+    padding: 2px 8px !important;
+}
+
+.dash-dropdown-wrapper button.dash-dropdown:hover {
     border-color: #00C896 !important;
 }
 
-/* Flechitas Webkit: opacity:1 para mostrarlas siempre visibles.
-   No usamos filter:invert porque en algunos builds de Chrome
-   genera artefactos. Las flechitas nativas son grises claros
-   que ya contrastan bien sobre #1C2128. */
-.input-number-dark::-webkit-inner-spin-button,
-.input-number-dark::-webkit-outer-spin-button,
-.input-number-dark input::-webkit-inner-spin-button,
-.input-number-dark input::-webkit-outer-spin-button {
-    opacity: 1 !important;
+/* Input del año */
+.dash-input-container.dash-input {
+    background-color: #1C2128 !important;
+    border: 1px solid #30363D !important;
+    border-radius: 4px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    overflow: hidden !important;
+}
+
+.dash-input-container.dash-input:focus-within {
+    border-color: #00C896 !important;
+}
+
+input.dash-input-element {
+    background-color: #1C2128 !important;
+    background: #1C2128 !important;
+    border: none !important;
+    color: #E6EDF3 !important;
+    -webkit-text-fill-color: #E6EDF3 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.8rem !important;
+    text-align: center !important;
+    width: 52px !important;
+    outline: none !important;
+    box-shadow: none !important;
+    /* Ocultar flechas nativas */
+    -moz-appearance: textfield !important;
+    appearance: textfield !important;
+}
+
+input.dash-input-element::-webkit-inner-spin-button,
+input.dash-input-element::-webkit-outer-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+}
+
+button.dash-input-stepper {
+    background-color: #1C2128 !important;
+    border: none !important;
+    border-left: 1px solid #30363D !important;
+    color: #7D8590 !important;
+    font-size: 0.9rem !important;
     cursor: pointer !important;
-    height: 28px !important;
-    margin-right: 2px !important;
+    padding: 0 5px !important;
+    line-height: 1 !important;
+}
+
+button.dash-input-stepper:hover {
+    color: #00C896 !important;
+}
+
+/* ── Tabla del calendario ── */
+.dash-datepicker-calendar-container {
+    background-color: #161B22 !important;
+}
+
+table.dash-datepicker-calendar {
+    background-color: #161B22 !important;
+    border-collapse: collapse !important;
+}
+
+/* Cabecera días de semana */
+table.dash-datepicker-calendar thead th span {
+    color: #7D8590 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.65rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+}
+
+/* Días del mes */
+td.dash-datepicker-calendar-date-inside {
+    background-color: #161B22 !important;
+    color: #E6EDF3 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.8rem !important;
+    text-align: center !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    transition: background-color 0.1s !important;
+}
+
+td.dash-datepicker-calendar-date-inside:hover {
+    background-color: rgba(0, 200, 150, 0.2) !important;
+    color: #00C896 !important;
+}
+
+/* Día seleccionado */
+td.dash-datepicker-calendar-date-selected,
+td.dash-datepicker-calendar-date-highlighted {
+    background-color: #00C896 !important;
+    color: #0D1117 !important;
+    font-weight: 700 !important;
+    border-radius: 50% !important;
+}
+
+td.dash-datepicker-calendar-date-selected:hover {
+    background-color: #00A87E !important;
+}
+
+/* Días fuera del mes */
+td.dash-datepicker-calendar-date-outside {
+    background-color: #161B22 !important;
+    color: #30363D !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.8rem !important;
+    text-align: center !important;
+}
+
+/* Celdas de padding (fila vacía) */
+td.dash-datepicker-calendar-padding {
+    background-color: #161B22 !important;
+}
+
+/* ============================================================
+   TABS DE CATEGORÍA — S&P 500 / Crypto / FX
+   ============================================================ */
+
+.tab-categoria {
+    background-color: transparent !important;
+    color: #7D8590 !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 1.5px !important;
+    padding: 6px 14px !important;
+    cursor: pointer !important;
+    text-transform: uppercase !important;
+    transition: color 0.15s ease, border-color 0.15s ease !important;
+    white-space: nowrap !important;
+}
+
+.tab-categoria:hover {
+    color: #E6EDF3 !important;
+    border-bottom-color: #30363D !important;
+}
+
+.tab-categoria.tab-activo {
+    color: #00C896 !important;
+    border-bottom-color: #00C896 !important;
+}
+
+/* ============================================================
+   STEPPER CUSTOM — botón − | input | botón +
+   ============================================================ */
+
+.btn-stepper {
+    background-color: #1C2128 !important;
+    border: 1px solid #30363D !important;
+    color: #7D8590 !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 1.1rem !important;
+    cursor: pointer !important;
+    transition: color 0.15s, border-color 0.15s, background-color 0.15s !important;
+    user-select: none !important;
+}
+
+.btn-stepper:hover {
+    color: #E6EDF3 !important;
+    border-color: #00C896 !important;
+    background-color: rgba(0, 200, 150, 0.08) !important;
+}
+
+.btn-stepper:active {
+    background-color: rgba(0, 200, 150, 0.15) !important;
+}
+
+/* Ocultar flechas nativas del input numérico dentro del stepper */
+.input-stepper::-webkit-inner-spin-button,
+.input-stepper::-webkit-outer-spin-button {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    margin: 0 !important;
+}
+
+.input-stepper {
+    -moz-appearance: textfield !important;
+    appearance: textfield !important;
+}
+
+.input-stepper:focus {
+    border-color: #00C896 !important;
+    outline: none !important;
 }
 
 /* ============================================================
@@ -418,155 +574,7 @@ div.input-number-dark input[type="number"] {
 }
 
 /* ============================================================
-   DROPDOWN AGRUPADO — Cabeceras de categoría y separadores
-   Las opciones disabled con html.Span actúan como group headers
-   ============================================================ */
-
-/* Cabecera de grupo — opción disabled que actúa como label */
-.dropdown-grouped .VirtualizedSelectOption[aria-disabled="true"],
-.dropdown-grouped .Select-option.is-disabled {
-    cursor: default !important;
-    padding: 10px 12px 4px 12px !important;
-    opacity: 1 !important;
-    pointer-events: none !important;
-    background-color: #1C2128 !important;
-}
-
-/* Opciones normales dentro del grupo — indent sutil */
-.dropdown-grouped .Select-option:not(.is-disabled) {
-    padding-left: 20px !important;
-}
-
-/* Evitar que el hover coloree los group headers */
-.dropdown-grouped .Select-option.is-disabled:hover {
-    background-color: #1C2128 !important;
-    color: inherit !important;
-}
-
-/* ============================================================
-   DATE PICKER — Refinamiento visual
-   Borde redondeado completo, sin fang, icono de calendario
-   ============================================================ */
-
-/* Wrapper exterior — borde visible oscuro */
-.date-picker-dark .SingleDatePickerInput,
-.date-picker-dark .SingleDatePickerInput__withBorder {
-    border-radius: 6px !important;
-    overflow: hidden !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    background-color: #1C2128 !important;
-    border: 1px solid #30363D !important;
-    transition: border-color 0.15s ease !important;
-}
-
-.date-picker-dark .SingleDatePickerInput:hover,
-.date-picker-dark .SingleDatePickerInput:focus-within {
-    border-color: #00C896 !important;
-    box-shadow: 0 0 0 2px rgba(0, 200, 150, 0.15) !important;
-}
-
-/* DateInput interno — sin borde propio, hereda del wrapper */
-.date-picker-dark .DateInput {
-    background: transparent !important;
-    border: none !important;
-    border-radius: 0 !important;
-    flex: 1 !important;
-}
-
-/* Input de texto */
-.date-picker-dark .DateInput_input,
-.date-picker-dark .DateInput .DateInput_input {
-    background-color: transparent !important;
-    background: transparent !important;
-    border: none !important;
-    border-bottom: none !important;
-    color: #E6EDF3 !important;
-    -webkit-text-fill-color: #E6EDF3 !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.8rem !important;
-    padding: 8px 10px !important;
-    width: 100% !important;
-}
-
-.date-picker-dark .DateInput_input:focus,
-.date-picker-dark .DateInput_input__focused {
-    outline: none !important;
-    border-bottom: none !important;
-    background-color: transparent !important;
-    background: transparent !important;
-}
-
-/* Icono de calendario */
-.date-picker-dark .SingleDatePickerInput_calendarIcon {
-    padding: 0 10px !important;
-    color: #7D8590 !important;
-    background: transparent !important;
-    border: none !important;
-    cursor: pointer !important;
-    line-height: 1 !important;
-}
-
-.date-picker-dark .SingleDatePickerInput_calendarIcon:hover {
-    color: #00C896 !important;
-}
-
-/* Ocultar el fang (triángulo conector) */
-.date-picker-dark .DateInput_fang,
-.DateInput_fang {
-    display: none !important;
-}
-
-/* Cabecera del mes — colores del tema */
-.CalendarMonth_caption strong {
-    color: #E6EDF3 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 0.9rem !important;
-    font-weight: 600 !important;
-}
-
-/* Días de la semana */
-.DayPicker_weekHeader_li small {
-    color: #7D8590 !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.65rem !important;
-}
-
-/* Día con fecha seleccionada — acento verde */
-.CalendarDay__selected,
-.CalendarDay__selected:active {
-    background: #00C896 !important;
-    color: #0D1117 !important;
-    border-color: #00C896 !important;
-    border-radius: 50% !important;
-}
-
-.CalendarDay__default:hover {
-    background: rgba(0, 200, 150, 0.2) !important;
-    color: #00C896 !important;
-    border-radius: 50% !important;
-    border-color: transparent !important;
-}
-
-/* Fondo de los meses del calendario */
-.CalendarMonth,
-.CalendarMonthGrid {
-    background-color: #161B22 !important;
-}
-
-/* ============================================================
-   ESPACIADO VERTICAL UNIFORME ENTRE SECCIONES
-   Todas las tarjetas/gráficos del área de contenido
-   ============================================================ */
-
-/* Tarjetas de gráfico y tabla generadas por callbacks */
-.card-forecast {
-    margin-bottom: 16px !important;
-}
-
-/* ============================================================
    MODEBAR — Forzar visibilidad de botones de hover
-   Bootstrap/Cyborg puede ocultar elementos de la modebar
    ============================================================ */
 
 .modebar-btn {
@@ -580,7 +588,6 @@ div.input-number-dark input[type="number"] {
     visibility: visible !important;
 }
 
-/* Iconos de hover closest / compare */
 [data-title="Show closest data on hover"],
 [data-title="Compare data on hover"] {
     display: block !important;
