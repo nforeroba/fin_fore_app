@@ -226,7 +226,7 @@ def registrar_callbacks(app):
 
                 # Validation chart
                 html.Div([
-                    html.H6("MODEL VALIDATION", style=estilo_titulo),
+                    html.H6("MODEL VALIDATION PLOT", style=estilo_titulo),
                     dcc.Graph(
                         figure=fig_validacion,
                         config={
@@ -245,7 +245,7 @@ def registrar_callbacks(app):
                 html.Div([
                     html.H6("ACCURACY METRICS — TEST SET", style=estilo_titulo),
                     html.P(
-                        "★ Best model per metric highlighted in green  ·  Bias % = MPE (signed)  ·  Overfit = Train MAPE / Test MAPE ratio",
+                        "★ Best model per metric highlighted in green",
                         style={
                             "color"       : COLORES["acento_verde"],
                             "fontSize"    : "0.75rem",
@@ -253,17 +253,13 @@ def registrar_callbacks(app):
                             "marginBottom": "8px",
                         }
                     ),
-                    dcc.Graph(
-                        figure=fig_metricas,
-                        config={"displayModeBar": False},
-                        style={"width": "100%"},
-                    ),
+                    fig_metricas,
                 ], style=ESTILO_CARD),
 
                 # Forecast chart
                 html.Div([
                     html.H6(
-                        f"FORECAST — {meses_horizonte} MONTHS",
+                        f"FORECAST PLOT — {meses_horizonte} MONTHS",
                         style=estilo_titulo,
                     ),
                     dcc.Graph(

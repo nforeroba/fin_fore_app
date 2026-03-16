@@ -444,16 +444,44 @@ def crear_info_activo(info: dict) -> html.Div:
 
     # --- Helpers de renderizado ---
 
-    def item(label, valor, color=None):
+    _tooltip_counter = [0]
+
+    def item(label, valor, color=None, tooltip=None):
+        _tooltip_counter[0] += 1
+        tip_id = f"tt-info-{label.lower().replace(' ', '-').replace('.', '')}-{_tooltip_counter[0]}"
+        label_children = [
+            html.Span(label),
+        ]
+        if tooltip:
+            label_children += [
+                html.Span(
+                    " ⓘ",
+                    id=tip_id,
+                    style={"cursor": "help", "fontSize": "0.55rem"},
+                ),
+                dbc.Tooltip(
+                    tooltip,
+                    target=tip_id,
+                    placement="top",
+                    style={
+                        "fontFamily": "'DM Sans', sans-serif",
+                        "fontSize"  : "0.78rem",
+                        "maxWidth"  : "280px",
+                    }
+                ),
+            ]
         return html.Div([
             html.Span(
-                label,
+                label_children,
                 style={
                     "color"        : COLORES["texto_secundario"],
                     "fontSize"     : "0.6rem",
                     "fontFamily"   : "'Space Mono', monospace",
                     "letterSpacing": "1px",
                     "textTransform": "uppercase",
+                    "display"      : "flex",
+                    "alignItems"   : "center",
+                    "gap"          : "2px",
                 }
             ),
             html.Span(
@@ -476,15 +504,27 @@ def crear_info_activo(info: dict) -> html.Div:
             "flexShrink"     : "0",
         })
 
-    def opcional(label, valor_fmt, condicion=True, color=None):
-        """Retorna [sep, item] si la condicion se cumple, si no []."""
+    def opcional(label, valor_fmt, condicion=True, color=None, tooltip=None):
+        """Returns [sep, item] if condition is met, else []."""
         if not condicion:
             return []
-        return [sep(), item(label, valor_fmt, color)]
+        return [sep(), item(label, valor_fmt, color, tooltip)]
 
     industria = info.get("industria", "") or ""
     sector    = info.get("sector", "")    or ""
     etiqueta_sector = industria if industria and industria != "N/A" else sector
+
+    # Tooltip definitions for each info strip field
+    TT = {
+        "day_chg" : "Percentage change vs. previous session's closing price. Green = up, Red = down.",
+        "volume"  : "Number of shares (stocks) or units traded in the current session.",
+        "mkt_cap" : "Market Capitalization — current share price × total shares outstanding. Represents the total market value of the company.",
+        "pe"      : "Price-to-Earnings ratio — share price divided by annual earnings per share. Indicates how much investors pay per dollar of earnings. High P/E may signal growth expectations or overvaluation.",
+        "beta"    : "Sensitivity of the asset's returns relative to the overall market (S&P 500). Beta > 1 = more volatile than the market. Beta < 1 = less volatile. Beta < 0 = moves inversely to the market.",
+        "52w"     : "Lowest and highest prices recorded over the past 52 weeks. Useful for gauging where the current price stands within its recent range.",
+        "div"     : "Annual dividend per share as a percentage of the current price. Indicates income return from holding the stock.",
+        "sector"  : "Economic sector or specific industry the company operates in, as classified by yfinance.",
+    }
 
     return html.Div(
         children=[
@@ -515,16 +555,17 @@ def crear_info_activo(info: dict) -> html.Div:
                     sep(),
                     item("Price",    precio_fmt),
                     sep(),
-                    item("Day Chg",  variacion_fmt, color_variacion),
+                    item("Day Chg",  variacion_fmt, color_variacion, TT["day_chg"]),
 
                     *opcional("Volume",   volumen_fmt,
-                               not info.get("simbolo", "").endswith("=X") and volumen > 0),
+                               not info.get("simbolo", "").endswith("=X") and volumen > 0,
+                               tooltip=TT["volume"]),
 
-                    *opcional("Mkt Cap",    market_cap_fmt, market_cap > 0),
-                    *opcional("P/E",        pe_fmt,         pe_ratio is not None),
-                    *opcional("Beta",       beta_fmt,       beta is not None),
-                    *opcional("52w Range",  rango_fmt,      s52_max and s52_min),
-                    *opcional("Div. Yield", dividendo_fmt,  dividendo is not None),
+                    *opcional("Mkt Cap",    market_cap_fmt, market_cap > 0,          tooltip=TT["mkt_cap"]),
+                    *opcional("P/E",        pe_fmt,         pe_ratio is not None,     tooltip=TT["pe"]),
+                    *opcional("Beta",       beta_fmt,       beta is not None,         tooltip=TT["beta"]),
+                    *opcional("52w Range",  rango_fmt,      s52_max and s52_min,      tooltip=TT["52w"]),
+                    *opcional("Div. Yield", dividendo_fmt,  dividendo is not None,    tooltip=TT["div"]),
                     *opcional("Sector",     etiqueta_sector,
                                bool(etiqueta_sector and etiqueta_sector != "N/A")),
 

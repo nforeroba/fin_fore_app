@@ -6,6 +6,8 @@
 
 import pandas as pd
 import plotly.graph_objects as go
+from dash import html
+import dash_bootstrap_components as dbc
 from src.layout.components import COLORES
 
 
@@ -313,143 +315,272 @@ def grafico_forecast(
 # TABLA DE MÉTRICAS ESTILIZADA
 # ============================================================
 
-def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
+# ============================================================
+# TABLA DE MÉTRICAS HTML CON TOOLTIPS
+# ============================================================
+
+# Display-friendly family labels with accent colors
+FAMILIA_DISPLAY = {
+    "statistical": ("Statistical",  "#58A6FF"),   # blue
+    "additive"   : ("Additive",     "#FB923C"),   # orange
+    "hybrid"     : ("Hybrid",       "#E879F9"),   # purple
+    "lag_based"  : ("Lag-Based",    "#34D399"),   # teal
+}
+
+# Tooltip text for each metric header
+TOOLTIPS_METRICAS = {
+    "MODEL"  : "Model name.",
+    "FAMILY" : (
+        "Model family based on forecasting mechanism. "
+        "Statistical: classical time-series models (ARIMA, ETS, Theta). "
+        "Additive: trend + seasonality decomposition (Prophet). "
+        "Hybrid: additive decomposition + boosted residuals (Prophet+XGBoost). "
+        "Lag-Based: ML models using lagged values as features."
+    ),
+    "MAE"    : (
+        "Mean Absolute Error. Average absolute difference between predicted "
+        "and actual values, in price units. Lower is better. "
+        "Scale-dependent — not comparable across different assets."
+    ),
+    "RMSE"   : (
+        "Root Mean Squared Error. Like MAE but penalizes large errors more "
+        "heavily due to squaring. In price units. Lower is better."
+    ),
+    "MAPE"   : (
+        "Mean Absolute Percentage Error. Average absolute error as a "
+        "percentage of the actual value. Scale-independent — comparable "
+        "across assets. Lower is better."
+    ),
+    "SMAPE"  : (
+        "Symmetric MAPE. Like MAPE but normalizes by the average of actual "
+        "and predicted values, removing the asymmetry that makes MAPE "
+        "penalize underestimates more than overestimates. Lower is better."
+    ),
+    "BIAS"   : (
+        "Bias % (Mean Percentage Error). Signed version of MAPE — errors "
+        "do not cancel in absolute value, revealing systematic direction. "
+        "Positive = model consistently overestimates. "
+        "Negative = consistently underestimates. "
+        "Close to zero = no systematic directional bias."
+    ),
+    "OVERFIT": (
+        "Overfitting indicator based on the Train MAPE / Test MAPE ratio. "
+        "A ratio close to 1 means similar performance on training and test data. "
+        "A low ratio means the model fits training data well but fails to generalize. "
+        "Thresholds are differentiated by model family. "        
+    ),
+}
+
+# Overfit thresholds by family (ok_min, moderate_min)
+_OVERFIT_THRESHOLDS = {
+    "statistical": (0.65, 0.40),
+    "additive"   : (0.50, 0.30),
+    "hybrid"     : (0.40, 0.25),
+    "lag_based"  : (0.30, 0.15),
+}
+
+
+def crear_tabla_metricas(df_metricas: pd.DataFrame) -> html.Div:
     """
-    Generates a styled metrics table with Plotly,
-    highlighting the best model per metric in green,
-    flagging overfitting via the Train/Test MAPE ratio,
-    and showing MPE (Bias %) with traffic-light coloring.
+    Generates an HTML metrics table with tooltips on each column header,
+    a Family column, Bias % and Overfit columns with traffic-light coloring,
+    and best-model highlighting per metric.
 
     Parameters:
-        df_metricas: DataFrame with columns modelo, MAE, RMSE, MAPE, SMAPE, MPE,
-                     and optionally MAPE_train for overfit detection.
+        df_metricas: DataFrame with columns modelo, familia, MAE, RMSE,
+                     MAPE, SMAPE, MPE, and optionally MAPE_train.
 
     Returns:
-        Plotly Figure with the table
+        html.Div containing the styled table and dbc.Tooltips
     """
-    metricas = ["MAE", "RMSE", "MAPE", "SMAPE"]
 
-    # Overfit thresholds differentiated by model family.
-    # Rationale: ML models with lag features have structurally lower
-    # train MAPE (they "see" true past values in-sample but use predicted
-    # values recursively at forecast time), so their OK threshold is lower.
-    OVERFIT_THRESHOLDS = {
-        "statistical": (0.65, 0.40),
-        "additive"   : (0.50, 0.30),
-        "hybrid"     : (0.40, 0.25),
-        "lag_based"  : (0.30, 0.15),
+    # ---- Helper: cell background colors -------------------------
+
+    def _best_color(val, col_vals):
+        return hex_a_rgba(COLORES["acento_verde"], 0.20) if val == col_vals.min() else COLORES["fondo_input"]
+
+    def _bias_bg(mpe):
+        if mpe is None:
+            return COLORES["fondo_input"]
+        a = abs(mpe)
+        if a < 2.0:   return hex_a_rgba(COLORES["acento_verde"], 0.15)
+        if a < 5.0:   return hex_a_rgba("#F0B429", 0.20)
+        return hex_a_rgba(COLORES["acento_rojo"], 0.20)
+
+    def _overfit_info(row):
+        if "MAPE_train" not in row or row["MAPE"] == 0:
+            return "—", COLORES["fondo_input"]
+        ratio   = row["MAPE_train"] / row["MAPE"]
+        familia = row.get("familia", "lag_based")
+        ok, mod = _OVERFIT_THRESHOLDS.get(familia, (0.30, 0.15))
+        if ratio >= ok:
+            return "✓ OK",       hex_a_rgba(COLORES["acento_verde"], 0.15)
+        if ratio >= mod:
+            return "⚠ Moderate", hex_a_rgba("#F0B429", 0.20)
+        return "✗ High",         hex_a_rgba(COLORES["acento_rojo"], 0.20)
+
+    # ---- Styles -------------------------------------------------
+
+    th_style = {
+        "color"        : COLORES["acento_verde"],
+        "fontFamily"   : "'Space Mono', monospace",
+        "fontSize"     : "0.7rem",
+        "fontWeight"   : "700",
+        "letterSpacing": "0.5px",
+        "padding"      : "10px 12px",
+        "borderBottom" : f"1px solid {COLORES['borde']}",
+        "borderRight"  : f"1px solid {COLORES['borde']}",
+        "backgroundColor": COLORES["fondo_card"],
+        "whiteSpace"   : "nowrap",
+        "cursor"       : "default",
+    }
+    td_style = {
+        "fontFamily": "'Space Mono', monospace",
+        "fontSize"  : "0.75rem",
+        "color"     : COLORES["texto_principal"],
+        "padding"   : "8px 12px",
+        "borderBottom": f"1px solid {COLORES['borde']}",
+        "borderRight" : f"1px solid {COLORES['borde']}",
+        "whiteSpace"  : "nowrap",
     }
 
-    # --- Overfit label & color ---
-    def _overfit_label(row):
-        if "MAPE_train" not in row or row["MAPE"] == 0:
-            return "—"
-        ratio     = row["MAPE_train"] / row["MAPE"]
-        familia   = row.get("familia", "lag_based")
-        ok_min, mod_min = OVERFIT_THRESHOLDS.get(familia, (0.30, 0.15))
-        if ratio >= ok_min:
-            return "✓ OK"
-        elif ratio >= mod_min:
-            return "⚠ Moderate"
-        else:
-            return "✗ High"
-
-    def _overfit_color(row):
-        if "MAPE_train" not in row or row["MAPE"] == 0:
-            return COLORES["fondo_input"]
-        ratio     = row["MAPE_train"] / row["MAPE"]
-        familia   = row.get("familia", "lag_based")
-        ok_min, mod_min = OVERFIT_THRESHOLDS.get(familia, (0.30, 0.15))
-        if ratio >= ok_min:
-            return hex_a_rgba(COLORES["acento_verde"], 0.15)
-        elif ratio >= mod_min:
-            return hex_a_rgba("#F0B429", 0.20)
-        else:
-            return hex_a_rgba(COLORES["acento_rojo"], 0.20)
-
-    # --- Bias label & color ---
-    def _bias_label(row):
-        if "MPE" not in row:
-            return "—"
-        mpe = row["MPE"]
-        sign = "+" if mpe >= 0 else ""
-        return f"{sign}{mpe:,.2f}%"
-
-    def _bias_color(row):
-        if "MPE" not in row:
-            return COLORES["fondo_input"]
-        abs_mpe = abs(row["MPE"])
-        if abs_mpe < 2.0:
-            return hex_a_rgba(COLORES["acento_verde"], 0.15)
-        elif abs_mpe < 5.0:
-            return hex_a_rgba("#F0B429", 0.20)
-        else:
-            return hex_a_rgba(COLORES["acento_rojo"], 0.20)
-
-    overfit_labels = df_metricas.apply(_overfit_label, axis=1).tolist()
-    overfit_colors = df_metricas.apply(_overfit_color, axis=1).tolist()
-    bias_labels    = df_metricas.apply(_bias_label,    axis=1).tolist()
-    bias_colors    = df_metricas.apply(_bias_color,    axis=1).tolist()
-
-    # --- Cell colors: best model per metric highlighted in green ---
-    colores_celdas = []
-    col_modelo = [COLORES["fondo_input"]] * len(df_metricas)
-    colores_celdas.append(col_modelo)
-
-    for metrica in metricas:
-        col_colores = []
-        idx_mejor = df_metricas[metrica].idxmin()
-        for i in range(len(df_metricas)):
-            if i == idx_mejor:
-                col_colores.append(hex_a_rgba(COLORES["acento_verde"], 0.20))
-            else:
-                col_colores.append(COLORES["fondo_input"])
-        colores_celdas.append(col_colores)
-
-    colores_celdas.append(bias_colors)
-    colores_celdas.append(overfit_colors)
-
-    fig = go.Figure(data=[go.Table(
-        header=dict(
-            values=["<b>MODEL</b>", "<b>MAE</b>", "<b>RMSE</b>",
-                    "<b>MAPE %</b>", "<b>SMAPE %</b>",
-                    "<b>BIAS %</b>", "<b>OVERFIT</b>"],
-            fill_color=COLORES["fondo_card"],
-            align="left",
-            font=dict(
-                color =COLORES["acento_verde"],
-                family="'Space Mono', monospace",
-                size  =11
-            ),
-            line_color=COLORES["borde"],
-            height=36,
-        ),
-        cells=dict(
-            values=[
-                df_metricas["modelo"],
-                df_metricas["MAE"].apply(lambda x: f"{x:,.4f}"),
-                df_metricas["RMSE"].apply(lambda x: f"{x:,.4f}"),
-                df_metricas["MAPE"].apply(lambda x: f"{x:,.2f}%"),
-                df_metricas["SMAPE"].apply(lambda x: f"{x:,.2f}%"),
-                bias_labels,
-                overfit_labels,
+    def _th(label, tooltip_id, tooltip_text):
+        return html.Th(
+            [
+                label,
+                html.Span(
+                    " ⓘ",
+                    id=tooltip_id,
+                    style={
+                        "color"     : COLORES["texto_secundario"],
+                        "fontSize"  : "0.65rem",
+                        "cursor"    : "help",
+                    }
+                ),
+                dbc.Tooltip(
+                    tooltip_text,
+                    target=tooltip_id,
+                    placement="top",
+                    style={
+                        "fontFamily": "'DM Sans', sans-serif",
+                        "fontSize"  : "0.78rem",
+                        "maxWidth"  : "320px",
+                    }
+                ),
             ],
-            fill_color=colores_celdas,
-            align="left",
-            font=dict(
-                color =COLORES["texto_principal"],
-                family="'Space Mono', monospace",
-                size  =11
-            ),
-            line_color=COLORES["borde"],
-            height=32,
+            style=th_style,
         )
-    )])
 
-    fig.update_layout(
-        paper_bgcolor=COLORES["fondo_card"],
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=len(df_metricas) * 32 + 80,
+    # ---- Header row ---------------------------------------------
+
+    headers = [
+        html.Th("MODEL",  style=th_style),
+        _th("FAMILY",  "tt-family",  TOOLTIPS_METRICAS["FAMILY"]),
+        _th("MAE",     "tt-mae",     TOOLTIPS_METRICAS["MAE"]),
+        _th("RMSE",    "tt-rmse",    TOOLTIPS_METRICAS["RMSE"]),
+        _th("MAPE %",  "tt-mape",    TOOLTIPS_METRICAS["MAPE"]),
+        _th("SMAPE %", "tt-smape",   TOOLTIPS_METRICAS["SMAPE"]),
+        _th("BIAS %",  "tt-bias",    TOOLTIPS_METRICAS["BIAS"]),
+        _th("OVERFIT", "tt-overfit", TOOLTIPS_METRICAS["OVERFIT"]),
+    ]
+
+    # ---- Data rows ----------------------------------------------
+
+    rows = []
+    for _, row in df_metricas.iterrows():
+
+        familia      = row.get("familia", "lag_based")
+        fam_label, fam_color = FAMILIA_DISPLAY.get(familia, ("Unknown", COLORES["texto_secundario"]))
+        overfit_label, overfit_bg = _overfit_info(row)
+        mpe          = row.get("MPE")
+        bias_label   = (f"+{mpe:,.2f}%" if mpe >= 0 else f"{mpe:,.2f}%") if mpe is not None else "—"
+
+        cells = [
+            html.Td(row["modelo"],                                     style=td_style),
+            html.Td(fam_label, style={**td_style, "color": fam_color}),
+            html.Td(f"{row['MAE']:,.4f}",  style={**td_style, "backgroundColor": _best_color(row["MAE"],  df_metricas["MAE"])}),
+            html.Td(f"{row['RMSE']:,.4f}", style={**td_style, "backgroundColor": _best_color(row["RMSE"], df_metricas["RMSE"])}),
+            html.Td(f"{row['MAPE']:,.2f}%",  style={**td_style, "backgroundColor": _best_color(row["MAPE"],  df_metricas["MAPE"])}),
+            html.Td(f"{row['SMAPE']:,.2f}%", style={**td_style, "backgroundColor": _best_color(row["SMAPE"], df_metricas["SMAPE"])}),
+            html.Td(bias_label,    style={**td_style, "backgroundColor": _bias_bg(mpe)}),
+            html.Td(overfit_label, style={**td_style, "backgroundColor": overfit_bg}),
+        ]
+        rows.append(html.Tr(cells))
+
+    table = html.Table(
+        [html.Thead(html.Tr(headers)), html.Tbody(rows)],
+        style={
+            "width"          : "100%",
+            "borderCollapse" : "collapse",
+            "backgroundColor": COLORES["fondo_input"],
+        }
     )
 
-    return fig
+    # ---- Footer with threshold legend ---------------------------
+
+    sep_foot = html.Span(
+        "  ·  ",
+        style={"color": COLORES["borde"], "margin": "0 4px"}
+    )
+
+    def _foot_badge(text, bg):
+        return html.Span(
+            text,
+            style={
+                "backgroundColor": bg,
+                "color"          : COLORES["texto_principal"],
+                "fontFamily"     : "'Space Mono', monospace",
+                "fontSize"       : "0.65rem",
+                "padding"        : "1px 6px",
+                "borderRadius"   : "3px",
+                "marginRight"    : "4px",
+            }
+        )
+
+    footer = html.Div([
+
+        # Row 1 — threshold badges
+        html.Div([
+            html.Span("BIAS %:", style={"color": COLORES["texto_secundario"], "fontFamily": "'Space Mono', monospace", "fontSize": "0.65rem", "marginRight": "6px"}),
+            _foot_badge("< 2%  low",         hex_a_rgba(COLORES["acento_verde"], 0.15)),
+            _foot_badge("2–5%  moderate",    hex_a_rgba("#F0B429", 0.20)),
+            _foot_badge("> 5%  high",        hex_a_rgba(COLORES["acento_rojo"], 0.20)),
+            sep_foot,
+            html.Span("OVERFIT:", style={"color": COLORES["texto_secundario"], "fontFamily": "'Space Mono', monospace", "fontSize": "0.65rem", "marginRight": "6px"}),
+            _foot_badge("✓ OK",       hex_a_rgba(COLORES["acento_verde"], 0.15)),
+            _foot_badge("⚠ Moderate", hex_a_rgba("#F0B429", 0.20)),
+            _foot_badge("✗ High",     hex_a_rgba(COLORES["acento_rojo"], 0.20)),
+        ], style={"display": "flex", "alignItems": "center", "flexWrap": "wrap", "gap": "4px"}),
+
+        # Row 2 — explanation of family-differentiated thresholds
+        html.Span(
+            (
+                "Overfit thresholds differ by family. "
+                "Statistical models (AutoARIMA, ETS, Theta) have few parameters and are regularized by design, "
+                "so their train and test errors are naturally similar — a low ratio is a genuine warning. "
+                "Additive models (Prophet) decompose the series into trend and seasonality without using lagged values, "
+                "making their in-sample fit honest and directly comparable to the test error. "
+                "Hybrid models (Prophet+XGBoost) add a boosting layer over in-sample residuals, "
+                "slightly inflating train-set fit — thresholds are adjusted accordingly. "
+                "Lag-based models (ElasticNet, RandomForest, XGBoost) use true past prices as input features during training "
+                "but must rely on their own previous predictions at forecast time. "
+                "This structural difference makes their in-sample error artificially low regardless of overfitting, "
+                "so only a very low ratio is treated as a real concern."
+            ),
+            style={
+                "color"     : COLORES["texto_secundario"],
+                "fontFamily": "'DM Sans', sans-serif",
+                "fontSize"  : "0.65rem",
+                "fontStyle" : "italic",
+                "marginTop" : "6px",
+                "display"   : "block",
+                "lineHeight": "1.6",
+            },
+        ),
+
+    ], style={"marginTop": "10px"})
+
+    return html.Div([
+        html.Div(table, style={"overflowX": "auto"}),
+        footer,
+    ])
