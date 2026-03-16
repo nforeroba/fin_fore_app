@@ -51,11 +51,13 @@ LAYOUT_BASE = dict(
         bordercolor =COLORES["borde"],
         borderwidth =1,
         font=dict(size=10, family="'Space Mono', monospace"),
-        orientation ="v",
-        x=1.01, y=1,
+        orientation ="h",
+        x=0.5, y=-0.22,
+        xanchor="center",
+        yanchor="top",
         groupclick="toggleitem",
     ),
-    margin=dict(l=50, r=180, t=50, b=50),
+    margin=dict(l=50, r=30, t=50, b=110),
     hovermode="x unified",
 )
 
@@ -151,7 +153,7 @@ def grafico_validacion(
         name="ACTUAL",
         legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
-        hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
+        hovertemplate="%{x|%Y-%m-%d}  %{y:,.2f}<extra>ACTUAL</extra>"
     ))
 
     # --- Predicciones por modelo ---
@@ -169,9 +171,9 @@ def grafico_validacion(
             error_y=_construir_error_y(df_modelo, color),
             hovertemplate=(
                 f"<b>{modelo}</b><br>"
-                "Fecha: %{x}<br>"
-                "Pred: %{y:,.4f}<br>"
-                "CI±: [%{customdata[0]:,.4f} – %{customdata[1]:,.4f}]"
+                "Date: %{x|%Y-%m-%d}<br>"
+                "Pred: %{y:,.2f}<br>"
+                "CI±: [%{customdata[0]:,.2f} – %{customdata[1]:,.2f}]"
                 "<extra></extra>"
             ),
             customdata=list(zip(
@@ -201,7 +203,7 @@ def grafico_validacion(
     fig.update_layout(
         **LAYOUT_BASE,
         title=dict(
-            text=f"{simbolo} — Validación de Modelos",
+            text=f"{simbolo} — Model Validation",
             font=dict(color=COLORES["texto_principal"], size=14),
             x=0.01
         ),
@@ -247,7 +249,7 @@ def grafico_forecast(
         name="ACTUAL",
         legendgroup="ACTUAL",
         line=dict(color=COLORES["texto_principal"], width=1.5),
-        hovertemplate="%{y:,.4f}<extra>ACTUAL</extra>"
+        hovertemplate="%{x|%Y-%m-%d}  %{y:,.2f}<extra>ACTUAL</extra>"
     ))
 
     # --- Forecast por modelo ---
@@ -265,9 +267,9 @@ def grafico_forecast(
             error_y=_construir_error_y(df_modelo, color),
             hovertemplate=(
                 f"<b>{modelo}</b><br>"
-                "Fecha: %{x}<br>"
-                "Pred: %{y:,.4f}<br>"
-                "CI±: [%{customdata[0]:,.4f} – %{customdata[1]:,.4f}]"
+                "Date: %{x|%Y-%m-%d}<br>"
+                "Pred: %{y:,.2f}<br>"
+                "CI±: [%{customdata[0]:,.2f} – %{customdata[1]:,.2f}]"
                 "<extra></extra>"
             ),
             customdata=list(zip(
@@ -297,7 +299,7 @@ def grafico_forecast(
     fig.update_layout(
         **LAYOUT_BASE,
         title=dict(
-            text=f"{simbolo} — Forecast {meses_horizonte} meses",
+            text=f"{simbolo} — {meses_horizonte}-Month Forecast",
             font=dict(color=COLORES["texto_principal"], size=14),
             x=0.01
         ),
@@ -313,17 +315,83 @@ def grafico_forecast(
 
 def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
     """
-    Genera una tabla de métricas estilizada con Plotly,
-    destacando el mejor modelo por cada métrica en verde.
+    Generates a styled metrics table with Plotly,
+    highlighting the best model per metric in green,
+    flagging overfitting via the Train/Test MAPE ratio,
+    and showing MPE (Bias %) with traffic-light coloring.
 
-    Parámetros:
-        df_metricas: DataFrame con columnas modelo, MAE, RMSE, MAPE, SMAPE
+    Parameters:
+        df_metricas: DataFrame with columns modelo, MAE, RMSE, MAPE, SMAPE, MPE,
+                     and optionally MAPE_train for overfit detection.
 
-    Retorna:
-        Figura Plotly con la tabla
+    Returns:
+        Plotly Figure with the table
     """
     metricas = ["MAE", "RMSE", "MAPE", "SMAPE"]
 
+    # Overfit thresholds differentiated by model family.
+    # Rationale: ML models with lag features have structurally lower
+    # train MAPE (they "see" true past values in-sample but use predicted
+    # values recursively at forecast time), so their OK threshold is lower.
+    OVERFIT_THRESHOLDS = {
+        "statistical": (0.65, 0.40),
+        "additive"   : (0.50, 0.30),
+        "hybrid"     : (0.40, 0.25),
+        "lag_based"  : (0.30, 0.15),
+    }
+
+    # --- Overfit label & color ---
+    def _overfit_label(row):
+        if "MAPE_train" not in row or row["MAPE"] == 0:
+            return "—"
+        ratio     = row["MAPE_train"] / row["MAPE"]
+        familia   = row.get("familia", "lag_based")
+        ok_min, mod_min = OVERFIT_THRESHOLDS.get(familia, (0.30, 0.15))
+        if ratio >= ok_min:
+            return "✓ OK"
+        elif ratio >= mod_min:
+            return "⚠ Moderate"
+        else:
+            return "✗ High"
+
+    def _overfit_color(row):
+        if "MAPE_train" not in row or row["MAPE"] == 0:
+            return COLORES["fondo_input"]
+        ratio     = row["MAPE_train"] / row["MAPE"]
+        familia   = row.get("familia", "lag_based")
+        ok_min, mod_min = OVERFIT_THRESHOLDS.get(familia, (0.30, 0.15))
+        if ratio >= ok_min:
+            return hex_a_rgba(COLORES["acento_verde"], 0.15)
+        elif ratio >= mod_min:
+            return hex_a_rgba("#F0B429", 0.20)
+        else:
+            return hex_a_rgba(COLORES["acento_rojo"], 0.20)
+
+    # --- Bias label & color ---
+    def _bias_label(row):
+        if "MPE" not in row:
+            return "—"
+        mpe = row["MPE"]
+        sign = "+" if mpe >= 0 else ""
+        return f"{sign}{mpe:,.2f}%"
+
+    def _bias_color(row):
+        if "MPE" not in row:
+            return COLORES["fondo_input"]
+        abs_mpe = abs(row["MPE"])
+        if abs_mpe < 2.0:
+            return hex_a_rgba(COLORES["acento_verde"], 0.15)
+        elif abs_mpe < 5.0:
+            return hex_a_rgba("#F0B429", 0.20)
+        else:
+            return hex_a_rgba(COLORES["acento_rojo"], 0.20)
+
+    overfit_labels = df_metricas.apply(_overfit_label, axis=1).tolist()
+    overfit_colors = df_metricas.apply(_overfit_color, axis=1).tolist()
+    bias_labels    = df_metricas.apply(_bias_label,    axis=1).tolist()
+    bias_colors    = df_metricas.apply(_bias_color,    axis=1).tolist()
+
+    # --- Cell colors: best model per metric highlighted in green ---
     colores_celdas = []
     col_modelo = [COLORES["fondo_input"]] * len(df_metricas)
     colores_celdas.append(col_modelo)
@@ -338,10 +406,14 @@ def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
                 col_colores.append(COLORES["fondo_input"])
         colores_celdas.append(col_colores)
 
+    colores_celdas.append(bias_colors)
+    colores_celdas.append(overfit_colors)
+
     fig = go.Figure(data=[go.Table(
         header=dict(
-            values=["<b>MODELO</b>", "<b>MAE</b>", "<b>RMSE</b>",
-                    "<b>MAPE %</b>", "<b>SMAPE %</b>"],
+            values=["<b>MODEL</b>", "<b>MAE</b>", "<b>RMSE</b>",
+                    "<b>MAPE %</b>", "<b>SMAPE %</b>",
+                    "<b>BIAS %</b>", "<b>OVERFIT</b>"],
             fill_color=COLORES["fondo_card"],
             align="left",
             font=dict(
@@ -359,6 +431,8 @@ def crear_tabla_metricas(df_metricas: pd.DataFrame) -> go.Figure:
                 df_metricas["RMSE"].apply(lambda x: f"{x:,.4f}"),
                 df_metricas["MAPE"].apply(lambda x: f"{x:,.2f}%"),
                 df_metricas["SMAPE"].apply(lambda x: f"{x:,.2f}%"),
+                bias_labels,
+                overfit_labels,
             ],
             fill_color=colores_celdas,
             align="left",

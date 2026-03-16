@@ -6,7 +6,7 @@
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from datetime import date
+from datetime import date, timedelta
 
 
 # ============================================================
@@ -104,10 +104,8 @@ def crear_header() -> html.Div:
             )
         ],
         style={
-            "backgroundColor": COLORES["fondo_card"],
-            "borderBottom"   : f"1px solid {COLORES['borde']}",
-            "padding"        : "14px 0",
-            "width"          : "100%",
+            "padding": "14px 0",
+            "width"  : "100%",
         }
     )
 
@@ -273,7 +271,7 @@ def crear_topbar(
 
                             # --- Símbolo ---
                             html.Div([
-                                html.Div("Símbolo", style=estilo_label),
+                                html.Div("Symbol", style=estilo_label),
                                 dcc.Dropdown(
                                     id="input-simbolo",
                                     options=opciones_iniciales,
@@ -289,10 +287,10 @@ def crear_topbar(
 
                             # --- Fecha Inicio ---
                             html.Div([
-                                html.Div("Fecha Inicio", style=estilo_label),
+                                html.Div("Start Date", style=estilo_label),
                                 dcc.DatePickerSingle(
                                     id="input-fecha-inicio",
-                                    date=date(2019, 1, 1),
+                                    date=date(2022, 1, 1),
                                     display_format="YYYY-MM-DD",
                                     className="date-picker-dark",
                                     style={"width": "100%"},
@@ -301,10 +299,10 @@ def crear_topbar(
 
                             # --- Fecha Fin ---
                             html.Div([
-                                html.Div("Fecha Fin", style=estilo_label),
+                                html.Div("End Date", style=estilo_label),
                                 dcc.DatePickerSingle(
                                     id="input-fecha-fin",
-                                    date=date.today(),
+                                    date=date.today() - timedelta(days=1),
                                     display_format="YYYY-MM-DD",
                                     className="date-picker-dark",
                                     style={"width": "100%"},
@@ -315,18 +313,18 @@ def crear_topbar(
 
                             # --- Test Split (stepper) ---
                             html.Div([
-                                html.Div("Test Split (meses)", style=estilo_label),
+                                html.Div("Test Split (months)", style=estilo_label),
                                 _crear_stepper(
                                     id_input    ="input-meses-test",
                                     id_btn_menos="btn-test-menos",
                                     id_btn_mas  ="btn-test-mas",
-                                    valor=4, minimo=1, maximo=24,
+                                    valor=6, minimo=1, maximo=24,
                                 ),
                             ], style={"flex": "0 0 auto"}),
 
                             # --- Horizonte (stepper) ---
                             html.Div([
-                                html.Div("Horizonte (meses)", style=estilo_label),
+                                html.Div("Horizon (months)", style=estilo_label),
                                 _crear_stepper(
                                     id_input    ="input-meses-horizonte",
                                     id_btn_menos="btn-horizonte-menos",
@@ -493,7 +491,7 @@ def crear_info_activo(info: dict) -> html.Div:
             html.Div(
                 children=[
 
-                    # Símbolo · Nombre
+                    # Symbol · Name
                     html.Div([
                         html.Span(
                             info.get("simbolo", ""),
@@ -512,20 +510,21 @@ def crear_info_activo(info: dict) -> html.Div:
                                 "fontSize"  : "0.85rem",
                             }
                         ),
-                    ], style={"display": "flex", "alignItems": "center", "flex": "1", "minWidth": "160px"}),
+                    ], style={"display": "flex", "alignItems": "center", "flex": "0 0 auto", "maxWidth": "280px"}),
 
                     sep(),
-                    item("Precio",    precio_fmt),
+                    item("Price",    precio_fmt),
                     sep(),
-                    item("Var. día",  variacion_fmt, color_variacion),
-                    sep(),
-                    item("Volumen",   volumen_fmt),
+                    item("Day Chg",  variacion_fmt, color_variacion),
+
+                    *opcional("Volume",   volumen_fmt,
+                               not info.get("simbolo", "").endswith("=X") and volumen > 0),
 
                     *opcional("Mkt Cap",    market_cap_fmt, market_cap > 0),
                     *opcional("P/E",        pe_fmt,         pe_ratio is not None),
                     *opcional("Beta",       beta_fmt,       beta is not None),
-                    *opcional("52w",        rango_fmt,      s52_max and s52_min),
-                    *opcional("Div. yield", dividendo_fmt,  dividendo is not None),
+                    *opcional("52w Range",  rango_fmt,      s52_max and s52_min),
+                    *opcional("Div. Yield", dividendo_fmt,  dividendo is not None),
                     *opcional("Sector",     etiqueta_sector,
                                bool(etiqueta_sector and etiqueta_sector != "N/A")),
 
@@ -533,16 +532,17 @@ def crear_info_activo(info: dict) -> html.Div:
                 style={
                     "display"   : "flex",
                     "alignItems": "center",
-                    "gap"       : "20px",
-                    "maxWidth"  : MAX_WIDTH,
-                    "margin"    : "0 auto",
-                    "width"     : "100%",
+                    "gap"       : "12px",
                     "flexWrap"  : "wrap",
                 }
             )
         ],
         style={
             **ESTILO_CARD,
-            "margin": MARGEN_SECCION,
+            "margin"  : MARGEN_SECCION,
+            "width"   : "fit-content",
+            "maxWidth": f"calc({MAX_WIDTH} - {PADDING_H} * 2)",
+            "marginLeft" : "auto",
+            "marginRight": "auto",
         }
     )

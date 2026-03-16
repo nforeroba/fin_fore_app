@@ -79,7 +79,7 @@ def calcular_metricas(
     y_pred: pd.Series,
     nombre_modelo: str
 ) -> dict:
-    """Calcula MAE, RMSE, MAPE y SMAPE para un modelo."""
+    """Calculates MAE, RMSE, MAPE, SMAPE and MPE (Bias %) for a model."""
     n      = min(len(y_real), len(y_pred))
     y_real = y_real.iloc[:n].values
     y_pred = y_pred.iloc[:n].values
@@ -96,12 +96,17 @@ def calcular_metricas(
         np.abs(y_real[mask_smape] - y_pred[mask_smape]) / denominador[mask_smape]
     ) * 100
 
+    # MPE (Bias %): signed mean percentage error — reveals systematic direction of error
+    # Positive = model consistently overestimates, Negative = consistently underestimates
+    mpe = np.mean((y_pred[mask] - y_real[mask]) / y_real[mask]) * 100
+
     return {
         "modelo": nombre_modelo,
         "MAE"   : round(mae,  4),
         "RMSE"  : round(rmse, 4),
         "MAPE"  : round(mape, 4),
-        "SMAPE" : round(smape, 4)
+        "SMAPE" : round(smape, 4),
+        "MPE"   : round(mpe,  4),
     }
 
 
@@ -227,6 +232,7 @@ def ejecutar_pipeline(
 
     pred_test_lista     = []
     pred_forecast_lista = []
+    pred_insample_lista = []   # for overfit detection
 
     # ----------------------------------------------------------
     # 4. Modelos estadísticos — AutoARIMA, AutoETS, Theta
@@ -236,8 +242,14 @@ def ejecutar_pipeline(
         df, simbolo, horizonte_dias, frecuencia
     )
 
-    pred_test_sf["ds"]     = _normalizar_fechas(pred_test_sf["ds"])
-    pred_forecast_sf["ds"] = _normalizar_fechas(pred_forecast_sf["ds"])
+    # In-sample: fit on train, predict back over train length
+    sf_fitted, pred_insample_sf = entrenar_modelos_estadisticos(
+        df_train, simbolo, len(df_train), frecuencia
+    )
+
+    pred_test_sf["ds"]       = _normalizar_fechas(pred_test_sf["ds"])
+    pred_forecast_sf["ds"]   = _normalizar_fechas(pred_forecast_sf["ds"])
+    pred_insample_sf["ds"]   = _normalizar_fechas(pred_insample_sf["ds"])
 
     modelos_sf = {
         "AutoARIMA": ("AutoARIMA", "AutoARIMA-lo-90", "AutoARIMA-hi-90"),
@@ -249,7 +261,8 @@ def ejecutar_pipeline(
         )
     }
 
-    fechas_test_norm = _normalizar_fechas(df_test["date"])
+    fechas_test_norm  = _normalizar_fechas(df_test["date"])
+    fechas_train_norm = _normalizar_fechas(df_train["date"])
 
     for nombre, (col_y, col_lo, col_hi) in modelos_sf.items():
         # Reindexar sobre fechas exactas del test — ffill para feriados
@@ -260,6 +273,15 @@ def ejecutar_pipeline(
 
         pred_test_lista.append(
             normalizar_predicciones_sf(pred_sf_test, nombre, col_y, col_lo, col_hi)
+        )
+
+        # In-sample: reindex over train dates
+        pred_sf_ins = pred_insample_sf[["ds", col_y, col_lo, col_hi]].copy()
+        pred_sf_ins = pred_sf_ins.set_index("ds")
+        pred_sf_ins = pred_sf_ins.reindex(fechas_train_norm).ffill().reset_index()
+        pred_sf_ins.columns = ["ds", col_y, col_lo, col_hi]
+        pred_insample_lista.append(
+            normalizar_predicciones_sf(pred_sf_ins, nombre, col_y, col_lo, col_hi)
         )
 
         # Forecast — solo fechas estrictamente después de fecha_fin
@@ -274,7 +296,7 @@ def ejecutar_pipeline(
     # 5. Prophet
     # ----------------------------------------------------------
     pred_test_prophet_raw = predecir_test_prophet(df_train, df_test, es_crypto)
-    _, pred_forecast_prophet_raw = entrenar_prophet(df, horizonte_dias, es_crypto)
+    modelo_prophet_fitted, pred_forecast_prophet_raw = entrenar_prophet(df, horizonte_dias, es_crypto)
 
     pred_test_lista.append(
         normalizar_predicciones_prophet(
@@ -285,6 +307,16 @@ def ejecutar_pipeline(
         normalizar_predicciones_prophet(
             _filtrar_forecast(pred_forecast_prophet_raw, fecha_fin), "Prophet"
         )
+    )
+
+    # In-sample Prophet: predict over train dates
+    from src.models.prophet_model import preparar_datos_prophet, _construir_futuro_desde_fechas
+    df_prophet_train = preparar_datos_prophet(df_train)
+    pred_insample_prophet_raw = modelo_prophet_fitted.predict(
+        _construir_futuro_desde_fechas(df_train)
+    )
+    pred_insample_lista.append(
+        normalizar_predicciones_prophet(pred_insample_prophet_raw, "Prophet")
     )
 
     # ----------------------------------------------------------
@@ -304,6 +336,12 @@ def ejecutar_pipeline(
         normalizar_predicciones_prophet(
             _filtrar_forecast(pred_forecast_pxgb_raw, fecha_fin), "Prophet+XGBoost"
         )
+    )
+
+    # In-sample Prophet+XGBoost: use train-set predictions over train dates
+    pred_insample_pxgb_raw = predecir_test_prophet_xgboost(df_train, df_train, es_crypto)
+    pred_insample_lista.append(
+        normalizar_predicciones_prophet(pred_insample_pxgb_raw, "Prophet+XGBoost")
     )
 
     # ----------------------------------------------------------
@@ -330,24 +368,61 @@ def ejecutar_pipeline(
             )
         )
 
+        # In-sample: predict over the train set itself
+        pred_insample_ml = predecir_con_intervalos(modelo_ml, df_train, df_train)
+        pred_insample_lista.append(
+            normalizar_predicciones_ml(pred_insample_ml, nombre_ml)
+        )
+
     # ----------------------------------------------------------
     # 8. Unificar predicciones
     # ----------------------------------------------------------
     pred_test_unificado     = pd.concat(pred_test_lista,     ignore_index=True)
     pred_forecast_unificado = pd.concat(pred_forecast_lista, ignore_index=True)
+    pred_insample_unificado = pd.concat(pred_insample_lista, ignore_index=True)
 
     # ----------------------------------------------------------
-    # 9. Calcular métricas sobre el test set
+    # 9. Calcular métricas sobre test set + MAPE in-sample para overfit
     # ----------------------------------------------------------
+
+    # Family mapping — drives differentiated overfit thresholds in plots.py
+    FAMILIA_MODELO = {
+        "AutoARIMA"      : "statistical",
+        "AutoETS"        : "statistical",
+        "Theta"          : "statistical",
+        "Prophet"        : "additive",
+        "Prophet+XGBoost": "hybrid",
+        "ElasticNet"     : "lag_based",
+        "RandomForest"   : "lag_based",
+        "XGBoost"        : "lag_based",
+    }
+
     metricas_lista = []
-    y_real = df_test["value"].reset_index(drop=True)
+    y_real_test  = df_test["value"].reset_index(drop=True)
+    y_real_train = df_train["value"].reset_index(drop=True)
 
     for nombre_modelo in pred_test_unificado["modelo"].unique():
-        pred_modelo = pred_test_unificado[
+        pred_test_modelo = pred_test_unificado[
             pred_test_unificado["modelo"] == nombre_modelo
         ]["yhat"].reset_index(drop=True)
 
-        metricas_lista.append(calcular_metricas(y_real, pred_modelo, nombre_modelo))
+        metricas = calcular_metricas(y_real_test, pred_test_modelo, nombre_modelo)
+
+        # MAPE in-sample — compute separately to keep calcular_metricas clean
+        pred_ins = pred_insample_unificado[
+            pred_insample_unificado["modelo"] == nombre_modelo
+        ]["yhat"].reset_index(drop=True)
+
+        n = min(len(y_real_train), len(pred_ins))
+        if n > 0:
+            yr = y_real_train.iloc[:n].values
+            yp = pred_ins.iloc[:n].values
+            mask = yr != 0
+            mape_train = float(np.mean(np.abs((yr[mask] - yp[mask]) / yr[mask])) * 100)
+            metricas["MAPE_train"] = round(mape_train, 4)
+
+        metricas["familia"] = FAMILIA_MODELO.get(nombre_modelo, "ml")
+        metricas_lista.append(metricas)
 
     df_metricas = pd.DataFrame(metricas_lista).sort_values("MAPE").reset_index(drop=True)
 

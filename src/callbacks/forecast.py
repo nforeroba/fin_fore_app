@@ -196,7 +196,7 @@ def registrar_callbacks(app):
                 simbolo         = simbolo,
                 fecha_inicio    = str(fecha_inicio),
                 fecha_fin       = str(fecha_fin),
-                meses_test      = int(meses_test or 4),
+                meses_test      = int(meses_test or 6),
                 meses_horizonte = int(meses_horizonte or 6),
             )
 
@@ -224,9 +224,9 @@ def registrar_callbacks(app):
 
             return html.Div([
 
-                # Gráfico de validación
+                # Validation chart
                 html.Div([
-                    html.H6("VALIDACIÓN DE MODELOS", style=estilo_titulo),
+                    html.H6("MODEL VALIDATION", style=estilo_titulo),
                     dcc.Graph(
                         figure=fig_validacion,
                         config={
@@ -241,11 +241,11 @@ def registrar_callbacks(app):
                     ),
                 ], style=ESTILO_CARD),
 
-                # Tabla de métricas
+                # Metrics table
                 html.Div([
-                    html.H6("MÉTRICAS DE ACCURACY — TEST SET", style=estilo_titulo),
+                    html.H6("ACCURACY METRICS — TEST SET", style=estilo_titulo),
                     html.P(
-                        "★ Mejor modelo por métrica resaltado en verde",
+                        "★ Best model per metric highlighted in green  ·  Bias % = MPE (signed)  ·  Overfit = Train MAPE / Test MAPE ratio",
                         style={
                             "color"       : COLORES["acento_verde"],
                             "fontSize"    : "0.75rem",
@@ -260,10 +260,10 @@ def registrar_callbacks(app):
                     ),
                 ], style=ESTILO_CARD),
 
-                # Gráfico de forecast
+                # Forecast chart
                 html.Div([
                     html.H6(
-                        f"FORECAST — {meses_horizonte} MESES",
+                        f"FORECAST — {meses_horizonte} MONTHS",
                         style=estilo_titulo,
                     ),
                     dcc.Graph(
@@ -327,26 +327,26 @@ def registrar_callbacks(app):
     )
     def resetear_app(n_clicks, simbolos_sp500):
         """
-        Resetea todos los inputs a sus valores por defecto:
-        - Tab activo → S&P 500
-        - Símbolo → AAPL
-        - Fechas → 2019-01-01 a hoy
-        - Test split → 4, Horizonte → 6
-        - Limpia el área de resultados
+        Resets all inputs to their default values:
+        - Active tab → S&P 500
+        - Symbol → AAPL
+        - Dates → 2022-01-01 to yesterday
+        - Test split → 6, Horizon → 6
+        - Clears results area
         """
-        from datetime import date
+        from datetime import date, timedelta
         BASE   = "tab-categoria"
         ACTIVO = "tab-categoria tab-activo"
         opciones_sp500 = [{"label": s, "value": s} for s in (simbolos_sp500 or [])]
 
         return (
-            html.Div(),                      # Limpiar resultados
-            ACTIVO, BASE, BASE,              # Tabs: S&P 500 activo
-            "sp500",                         # Store categoría
-            opciones_sp500,                  # Opciones dropdown
-            DEFAULTS_CATEGORIA["sp500"],     # Símbolo: AAPL
-            date(2019, 1, 1),               # Fecha inicio
-            date.today(),                    # Fecha fin
-            4,                               # Meses test
-            6,                               # Meses horizonte
+            html.Div(),                          # Clear results
+            ACTIVO, BASE, BASE,                  # Tabs: S&P 500 active
+            "sp500",                             # Category store
+            opciones_sp500,                      # Dropdown options
+            DEFAULTS_CATEGORIA["sp500"],         # Symbol: AAPL
+            date(2022, 1, 1),                   # Start date
+            date.today() - timedelta(days=1),    # End date: yesterday
+            6,                                   # Test split months
+            6,                                   # Horizon months
         )

@@ -117,53 +117,55 @@ def obtener_simbolos_crypto() -> list:
 
 def obtener_simbolos_divisas() -> list:
     """
-    Retorna la lista de pares de divisas principales disponibles
-    en yfinance.
+    Returns the list of main currency pairs available in yfinance.
 
-    Nota sobre pares COP: yfinance reporta COPUSD=X como cuántos USD
-    vale 1 COP (~0.00025), lo cual produce valores muy pequeños.
-    Se usan los pares invertidos USDCOP=X, EURCOP=X, GBPCOP=X para
-    mostrar cuántos pesos colombianos vale 1 unidad de la divisa extranjera,
-    que es la convención estándar en Colombia.
+    Convention: all pairs express how many units of the quote currency
+    equal 1 USD (or 1 EUR / 1 GBP for COP pairs), so that values are
+    always human-readable and MAPE is well-behaved numerically.
 
-    Retorna:
-        Lista de símbolos de divisas en formato yfinance
+    Pairs that would express how many USD equals 1 unit of a low-value
+    currency (JPY, KRW, IDR, CLP, THB, MYR) are inverted to USD-base
+    convention — the same approach used for the COP pairs.
+
+    Returns:
+        List of currency pair symbols in yfinance format
     """
     divisas = [
-        # Pares mayores — cuántos USD vale 1 unidad de divisa base
+        # Major pairs — how many USD per 1 unit of base currency
+        # (base currencies with value > 1 USD keep the natural direction)
         "EURUSD=X",   # Euro
-        "GBPUSD=X",   # Libra esterlina
-        "JPYUSD=X",   # Yen japonés
-        "CHFUSD=X",   # Franco suizo
-        "AUDUSD=X",   # Dólar australiano
-        "CADUSD=X",   # Dólar canadiense
-        "NZDUSD=X",   # Dólar neozelandés
-        "CNYUSD=X",   # Yuan chino
-        "HKDUSD=X",   # Dólar de Hong Kong
-        "SGDUSD=X",   # Dólar de Singapur
+        "GBPUSD=X",   # British pound
+        "CHFUSD=X",   # Swiss franc
+        "AUDUSD=X",   # Australian dollar
+        "CADUSD=X",   # Canadian dollar
+        "NZDUSD=X",   # New Zealand dollar
+        "SGDUSD=X",   # Singapore dollar
 
-        # Pares menores contra USD
-        "MXNUSD=X",   # Peso mexicano
-        "BRLUSD=X",   # Real brasileño
-        "ARSUSD=X",   # Peso argentino
-        "CLPUSD=X",   # Peso chileno
-        "SEKUSD=X",   # Corona sueca
-        "NOKUSD=X",   # Corona noruega
-        "DKKUSD=X",   # Corona danesa
-        "ZARUSD=X",   # Rand sudafricano
-        "INRUSD=X",   # Rupia india
-        "KRWUSD=X",   # Won surcoreano
-        "TRYUSD=X",   # Lira turca
-        "PLNUSD=X",   # Esloti polaco
-        "THBUSD=X",   # Baht tailandés
-        "IDRUSD=X",   # Rupia indonesia
-        "MYRUSD=X",   # Ringgit malayo
+        # Inverted pairs — how many units of quote currency per 1 USD
+        # Used for currencies whose value per USD is < 1 (avoids tiny values)
+        "USDJPY=X",   # Japanese yen
+        "USDCNY=X",   # Chinese yuan
+        "USDHKD=X",   # Hong Kong dollar
+        "USDMXN=X",   # Mexican peso
+        "USDBRL=X",   # Brazilian real
+        "USDARS=X",   # Argentine peso
+        "USDCLP=X",   # Chilean peso
+        "USDSEK=X",   # Swedish krona
+        "USDNOK=X",   # Norwegian krone
+        "USDDKK=X",   # Danish krone
+        "USDZAR=X",   # South African rand
+        "USDINR=X",   # Indian rupee
+        "USDKRW=X",   # South Korean won
+        "USDTRY=X",   # Turkish lira
+        "USDPLN=X",   # Polish zloty
+        "USDTHB=X",   # Thai baht
+        "USDIDR=X",   # Indonesian rupiah
+        "USDMYR=X",   # Malaysian ringgit
 
-        # Pares con peso colombiano (COP) — convención local
-        # Cuántos COP vale 1 USD / 1 EUR / 1 GBP
-        "USDCOP=X",   # USD a peso colombiano
-        "EURCOP=X",   # Euro a peso colombiano
-        "GBPCOP=X",   # Libra a peso colombiano
+        # Colombian peso pairs — how many COP per 1 unit of foreign currency
+        "USDCOP=X",   # USD to Colombian peso
+        "EURCOP=X",   # Euro to Colombian peso
+        "GBPCOP=X",   # Pound to Colombian peso
     ]
 
     return divisas
@@ -258,7 +260,7 @@ def obtener_info_activo(simbolo: str) -> dict:
             "beta"        : round(float(beta), 2) if beta else None,
             "semana_52_max": round(float(semana_52_max), 2) if semana_52_max else None,
             "semana_52_min": round(float(semana_52_min), 2) if semana_52_min else None,
-            "dividendo"   : round(float(dividendo) * 100, 2) if dividendo else None,
+            "dividendo"   : round(float(dividendo), 2) if dividendo else None,
         }
 
     except Exception as e:
