@@ -1,2 +1,2 @@
-# fin_fore_app
-A Financial Forecasting App
+# FinForecast
+A Financial Asset Forecasting App
