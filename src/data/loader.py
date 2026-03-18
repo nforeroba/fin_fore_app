@@ -4,6 +4,7 @@
 # disponibles por categoría obtenidas dinámicamente.
 # ============================================================
 
+import time
 import yfinance as yf
 import pandas as pd
 import requests
@@ -46,54 +47,73 @@ def obtener_simbolos_sp500() -> list:
         return []
 
 
-def obtener_simbolos_indices() -> list:
-    """
-    Retorna los índices bursátiles más relevantes del mundo.
-    Disponibles en yfinance con el prefijo ^.
+# ============================================================
+# FALLBACK — Top 50 crypto por market cap (CoinGecko, marzo 2026)
+# Se usa cuando la API de CoinGecko no está disponible o
+# retorna rate limit (429). Garantiza que el dropdown nunca
+# quede vacío.
+# ============================================================
 
-    Retorna:
-        Lista de símbolos de índices en formato yfinance
-    """
-    return [
-        # Estados Unidos
-        "^GSPC",   # S&P 500
-        "^DJI",    # Dow Jones Industrial Average
-        "^IXIC",   # NASDAQ Composite
-        "^RUT",    # Russell 2000
-        "^VIX",    # CBOE Volatility Index
-
-        # Europa
-        "^FTSE",   # FTSE 100 (UK)
-        "^GDAXI",  # DAX (Alemania)
-        "^FCHI",   # CAC 40 (Francia)
-        "^STOXX50E", # Euro Stoxx 50
-        "^IBEX",   # IBEX 35 (España)
-
-        # Asia / Pacífico
-        "^N225",   # Nikkei 225 (Japón)
-        "^HSI",    # Hang Seng (Hong Kong)
-        "000001.SS", # Shanghai Composite (China)
-        "^AXJO",   # ASX 200 (Australia)
-        "^KS11",   # KOSPI (Corea del Sur)
-
-        # Latinoamérica
-        "^BVSP",   # Bovespa (Brasil)
-        "^MXX",    # IPC (México)
-        "^IPSA",   # IPSA (Chile)
-        "^COLCAP",  # COLCAP (Colombia)
-
-        # Materias primas / otros
-        "GC=F",    # Oro (Gold Futures)
-        "SI=F",    # Plata (Silver Futures)
-        "CL=F",    # Petróleo WTI
-        "BZ=F",    # Petróleo Brent
-    ]
+_CRYPTO_FALLBACK = [
+    "BTC-USD",   # Bitcoin
+    "ETH-USD",   # Ethereum
+    "BNB-USD",   # BNB
+    "XRP-USD",   # XRP
+    "SOL-USD",   # Solana
+    "ADA-USD",   # Cardano
+    "DOGE-USD",  # Dogecoin
+    "TRX-USD",   # TRON
+    "DOT-USD",   # Polkadot
+    "MATIC-USD", # Polygon
+    "LTC-USD",   # Litecoin
+    "SHIB-USD",  # Shiba Inu
+    "AVAX-USD",  # Avalanche
+    "UNI-USD",   # Uniswap
+    "ATOM-USD",  # Cosmos
+    "XLM-USD",   # Stellar
+    "LINK-USD",  # Chainlink
+    "BCH-USD",   # Bitcoin Cash
+    "APT-USD",   # Aptos
+    "FIL-USD",   # Filecoin
+    "ARB-USD",   # Arbitrum
+    "OP-USD",    # Optimism
+    "INJ-USD",   # Injective
+    "IMX-USD",   # Immutable X
+    "NEAR-USD",  # NEAR Protocol
+    "VET-USD",   # VeChain
+    "MKR-USD",   # Maker
+    "GRT-USD",   # The Graph
+    "AAVE-USD",  # Aave
+    "SNX-USD",   # Synthetix
+    "CRV-USD",   # Curve DAO
+    "SAND-USD",  # The Sandbox
+    "MANA-USD",  # Decentraland
+    "AXS-USD",   # Axie Infinity
+    "CHZ-USD",   # Chiliz
+    "EGLD-USD",  # MultiversX
+    "THETA-USD", # Theta Network
+    "FTM-USD",   # Fantom
+    "ALGO-USD",  # Algorand
+    "XTZ-USD",   # Tezos
+    "EOS-USD",   # EOS
+    "ZEC-USD",   # Zcash
+    "XMR-USD",   # Monero
+    "DASH-USD",  # Dash
+    "BAT-USD",   # Basic Attention Token
+    "ENJ-USD",   # Enjin Coin
+    "1INCH-USD", # 1inch
+    "COMP-USD",  # Compound
+    "YFI-USD",   # yearn.finance
+    "SUSHI-USD", # SushiSwap
+]
 
 
 def obtener_simbolos_crypto() -> list:
     """
     Obtiene las top 100 criptomonedas por capitalización de mercado
     desde la API pública de CoinGecko (sin API key).
+    Si la API no está disponible o retorna rate limit, usa la lista
+    de fallback con las top 50 cryptos.
 
     Retorna:
         Lista de símbolos en formato yfinance (ej. ['BTC-USD', 'ETH-USD', ...])
@@ -111,8 +131,8 @@ def obtener_simbolos_crypto() -> list:
         return simbolos
 
     except Exception as e:
-        print(f"Error obteniendo símbolos crypto: {e}")
-        return []
+        print(f"Error obteniendo símbolos crypto: {e}. Usando lista de fallback.")
+        return _CRYPTO_FALLBACK
 
 
 def obtener_simbolos_divisas() -> list:
@@ -220,64 +240,77 @@ def obtener_info_activo(simbolo: str) -> dict:
         sector, market_cap, pe_ratio, beta, semana_52_max,
         semana_52_min, industria
 
+    Reintenta hasta 3 veces con backoff exponencial en caso de
+    rate limiting de Yahoo Finance (Too Many Requests).
+
     Parámetros:
         simbolo: símbolo del activo
 
     Retorna:
         Diccionario con todos los campos disponibles
     """
-    try:
-        ticker = yf.Ticker(simbolo)
-        info = ticker.info
+    _fallback = {
+        "nombre"       : simbolo,
+        "simbolo"      : simbolo,
+        "precio"       : 0.0,
+        "variacion"    : 0.0,
+        "volumen"      : 0,
+        "moneda"       : "USD",
+        "sector"       : None,
+        "industria"    : None,
+        "market_cap"   : None,
+        "pe_ratio"     : None,
+        "beta"         : None,
+        "semana_52_max": None,
+        "semana_52_min": None,
+        "dividendo"    : None,
+    }
 
-        nombre    = info.get("longName") or info.get("shortName") or simbolo
-        precio    = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
-        variacion = info.get("regularMarketChangePercent") or 0.0
-        volumen   = info.get("regularMarketVolume") or info.get("volume") or 0
-        moneda    = info.get("currency") or "USD"
-        sector    = info.get("sector") or None
-        industria = info.get("industry") or None
+    for intento in range(3):
+        try:
+            ticker = yf.Ticker(simbolo)
+            info = ticker.info
 
-        # Métricas adicionales — disponibles para acciones, no para crypto/divisas
-        market_cap    = info.get("marketCap") or None
-        pe_ratio      = info.get("trailingPE") or info.get("forwardPE") or None
-        beta          = info.get("beta") or None
-        semana_52_max = info.get("fiftyTwoWeekHigh") or None
-        semana_52_min = info.get("fiftyTwoWeekLow") or None
-        dividendo     = info.get("dividendYield") or None
+            nombre    = info.get("longName") or info.get("shortName") or simbolo
+            precio    = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+            variacion = info.get("regularMarketChangePercent") or 0.0
+            volumen   = info.get("regularMarketVolume") or info.get("volume") or 0
+            moneda    = info.get("currency") or "USD"
+            sector    = info.get("sector") or None
+            industria = info.get("industry") or None
 
-        return {
-            "nombre"      : nombre,
-            "simbolo"     : simbolo,
-            "precio"      : round(float(precio), 2),
-            "variacion"   : round(float(variacion), 2),
-            "volumen"     : volumen,
-            "moneda"      : moneda,
-            "sector"      : sector,
-            "industria"   : industria,
-            "market_cap"  : market_cap,
-            "pe_ratio"    : round(float(pe_ratio), 2) if pe_ratio else None,
-            "beta"        : round(float(beta), 2) if beta else None,
-            "semana_52_max": round(float(semana_52_max), 2) if semana_52_max else None,
-            "semana_52_min": round(float(semana_52_min), 2) if semana_52_min else None,
-            "dividendo"   : round(float(dividendo), 2) if dividendo else None,
-        }
+            # Métricas adicionales — disponibles para acciones, no para crypto/divisas
+            market_cap    = info.get("marketCap") or None
+            pe_ratio      = info.get("trailingPE") or info.get("forwardPE") or None
+            beta          = info.get("beta") or None
+            semana_52_max = info.get("fiftyTwoWeekHigh") or None
+            semana_52_min = info.get("fiftyTwoWeekLow") or None
+            dividendo     = info.get("dividendYield") or None
 
-    except Exception as e:
-        print(f"Error obteniendo info del activo '{simbolo}': {e}")
-        return {
-            "nombre"      : simbolo,
-            "simbolo"     : simbolo,
-            "precio"      : 0.0,
-            "variacion"   : 0.0,
-            "volumen"     : 0,
-            "moneda"      : "USD",
-            "sector"      : None,
-            "industria"   : None,
-            "market_cap"  : None,
-            "pe_ratio"    : None,
-            "beta"        : None,
-            "semana_52_max": None,
-            "semana_52_min": None,
-            "dividendo"   : None,
-        }
+            return {
+                "nombre"       : nombre,
+                "simbolo"      : simbolo,
+                "precio"       : round(float(precio), 2),
+                "variacion"    : round(float(variacion), 2),
+                "volumen"      : volumen,
+                "moneda"       : moneda,
+                "sector"       : sector,
+                "industria"    : industria,
+                "market_cap"   : market_cap,
+                "pe_ratio"     : round(float(pe_ratio), 2) if pe_ratio else None,
+                "beta"         : round(float(beta), 2) if beta else None,
+                "semana_52_max": round(float(semana_52_max), 2) if semana_52_max else None,
+                "semana_52_min": round(float(semana_52_min), 2) if semana_52_min else None,
+                "dividendo"    : round(float(dividendo), 2) if dividendo else None,
+            }
+
+        except Exception as e:
+            if "Too Many Requests" in str(e) and intento < 2:
+                espera = 2 ** intento   # 1s → 2s
+                print(f"Rate limit yfinance '{simbolo}', reintentando en {espera}s...")
+                time.sleep(espera)
+                continue
+            print(f"Error obteniendo info del activo '{simbolo}': {e}")
+            return _fallback
+
+    return _fallback
