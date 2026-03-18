@@ -4,7 +4,7 @@
 # de símbolo, steppers, ejecución del forecast y reset.
 # ============================================================
 
-from dash import Input, Output, State, html, dcc, no_update
+from dash import Input, Output, State, html, dcc, no_update, clientside_callback
 import dash_bootstrap_components as dbc
 
 from src.data.loader import obtener_info_activo
@@ -34,6 +34,28 @@ def registrar_callbacks(app):
     Parámetros:
         app: instancia de la aplicación Dash
     """
+
+    # ============================================================
+    # CLIENTSIDE CALLBACK — Fecha fin siempre = ayer al cargar
+    # Se ejecuta en el browser del usuario, no en el servidor,
+    # por lo que siempre refleja la fecha actual del cliente.
+    # ============================================================
+
+    clientside_callback(
+        """
+        function() {
+            const today = new Date();
+            today.setDate(today.getDate() - 1);
+            const yyyy = today.getFullYear();
+            const mm   = String(today.getMonth() + 1).padStart(2, '0');
+            const dd   = String(today.getDate()).padStart(2, '0');
+            return yyyy + '-' + mm + '-' + dd;
+        }
+        """,
+        Output("input-fecha-fin", "date"),
+        Input("input-fecha-fin",  "id"),
+    )
+
 
     # ============================================================
     # CALLBACK — Tabs de categoría
@@ -314,7 +336,7 @@ def registrar_callbacks(app):
         Output("input-simbolo",         "options",   allow_duplicate=True),
         Output("input-simbolo",         "value",     allow_duplicate=True),
         Output("input-fecha-inicio",    "date"),
-        Output("input-fecha-fin",       "date"),
+        Output("input-fecha-fin",       "date",      allow_duplicate=True),
         Output("input-meses-test",      "value",     allow_duplicate=True),
         Output("input-meses-horizonte", "value",     allow_duplicate=True),
         Input("btn-reset", "n_clicks"),
@@ -341,7 +363,7 @@ def registrar_callbacks(app):
             "sp500",                             # Category store
             opciones_sp500,                      # Dropdown options
             DEFAULTS_CATEGORIA["sp500"],         # Symbol: AAPL
-            date(2022, 1, 1),                   # Start date
+            date(2022, 1, 1),                    # Start date
             date.today() - timedelta(days=1),    # End date: yesterday
             6,                                   # Test split months
             6,                                   # Horizon months
